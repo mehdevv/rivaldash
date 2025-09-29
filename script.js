@@ -9,8 +9,13 @@ class AdminDashboard {
         this.players = [];
         this.quests = [];
         this.leaderboard = [];
+        this.daygrades = {}; // Store daily grades by date
+        this.missionSubmissions = {}; // Store daily mission submissions by date
+        this.feedbackHistory = []; // Store feedback history
+        this.currentTab = 'daygrades'; // Track current active tab
         
         this.init();
+        this.setupMidnightRefresh();
     }
     
     async init() {
@@ -75,9 +80,9 @@ class AdminDashboard {
                 this.currentUser = user;
                 await this.checkAdminRole(user);
             } else {
-                console.log('👋 Admin logged out');
+                console.log('👋 Admin not logged in, redirecting to login page');
                 this.currentUser = null;
-                this.showLogin();
+                this.redirectToLogin();
             }
         });
     }
@@ -100,9 +105,10 @@ class AdminDashboard {
                     console.log('🔧 Creating admin role for admin user...');
                     await this.createAdminRole(user);
                 } else {
-                    console.log('❌ Not an admin user');
+                        console.log('❌ Not an admin user, redirecting to login');
                     this.showError('Access denied. Admin privileges required.');
                     await window.signOut(window.auth);
+                        this.redirectToLogin();
                 }
             }
         } catch (error) {
@@ -119,6 +125,7 @@ class AdminDashboard {
                 }
             } else {
                 this.showError('Error verifying admin access.');
+                this.redirectToLogin();
             }
         }
     }
@@ -145,10 +152,10 @@ class AdminDashboard {
     }
     
     setupEventListeners() {
-        // Login form
-        const loginForm = document.getElementById('loginForm');
-        if (loginForm) {
-            loginForm.addEventListener('submit', (e) => this.handleLogin(e));
+        // Players button
+        const playersBtn = document.getElementById('playersButton');
+        if (playersBtn) {
+            playersBtn.addEventListener('click', () => this.goToPlayersPage());
         }
         
         // Logout button
@@ -157,45 +164,49 @@ class AdminDashboard {
             logoutBtn.addEventListener('click', () => this.handleLogout());
         }
         
-        // Add buttons
-        const addPlayerBtn = document.getElementById('addPlayerBtn');
-        if (addPlayerBtn) {
-            addPlayerBtn.addEventListener('click', () => this.showPlayerModal());
-        }
-        
+        // Add quest button
         const addQuestBtn = document.getElementById('addQuestBtn');
         if (addQuestBtn) {
             addQuestBtn.addEventListener('click', () => this.showQuestModal());
         }
         
-        // Modal close buttons
-        const closePlayerModal = document.getElementById('closePlayerModal');
-        if (closePlayerModal) {
-            closePlayerModal.addEventListener('click', () => this.hidePlayerModal());
+        // Tab navigation
+        const daygradesTab = document.getElementById('daygradesTab');
+        if (daygradesTab) {
+            daygradesTab.addEventListener('click', () => this.switchTab('daygrades'));
         }
         
+        const feedbackTab = document.getElementById('feedbackTab');
+        if (feedbackTab) {
+            feedbackTab.addEventListener('click', () => this.switchTab('feedback'));
+        }
+        
+        const missionsTab = document.getElementById('missionsTab');
+        if (missionsTab) {
+            missionsTab.addEventListener('click', () => this.switchTab('missions'));
+        }
+        
+            // Add buttons for each tab
+        
+        const addFeedbackBtn = document.getElementById('addFeedbackBtn');
+        if (addFeedbackBtn) {
+            addFeedbackBtn.addEventListener('click', () => this.showFeedbackModal());
+        }
+        
+        
+        // Modal close buttons
         const closeQuestModal = document.getElementById('closeQuestModal');
         if (closeQuestModal) {
             closeQuestModal.addEventListener('click', () => this.hideQuestModal());
         }
         
         // Cancel buttons
-        const cancelPlayerBtn = document.getElementById('cancelPlayerBtn');
-        if (cancelPlayerBtn) {
-            cancelPlayerBtn.addEventListener('click', () => this.hidePlayerModal());
-        }
-        
         const cancelQuestBtn = document.getElementById('cancelQuestBtn');
         if (cancelQuestBtn) {
             cancelQuestBtn.addEventListener('click', () => this.hideQuestModal());
         }
         
         // Form submissions
-        const playerForm = document.getElementById('playerForm');
-        if (playerForm) {
-            playerForm.addEventListener('submit', (e) => this.handlePlayerSubmit(e));
-        }
-        
         const questForm = document.getElementById('questForm');
         if (questForm) {
             questForm.addEventListener('submit', (e) => this.handleQuestSubmit(e));
@@ -204,7 +215,6 @@ class AdminDashboard {
         // Close modal when clicking outside
         window.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal')) {
-                this.hidePlayerModal();
                 this.hideQuestModal();
             }
         });
@@ -222,82 +232,6 @@ class AdminDashboard {
         this.startQuestTimerUpdates();
     }
     
-    async handleLogin(e) {
-        e.preventDefault();
-        
-        const email = document.getElementById('emailInput').value;
-        const password = document.getElementById('passwordInput').value;
-        
-        this.setLoginLoading(true);
-        
-        try {
-            await window.signInWithEmailAndPassword(window.auth, email, password);
-        } catch (error) {
-            console.error('❌ Login failed:', error);
-            
-            // If user not found and it's the default admin, try to create it
-            if (error.code === 'auth/user-not-found' && email === 'adminfaouzi@gmail.com') {
-                console.log('🔧 Admin user not found, attempting to create...');
-                try {
-                    await this.createAdminUser(email, password);
-                    return; // Don't show error, user creation will handle login
-                } catch (createError) {
-                    console.error('❌ Failed to create admin user:', createError);
-                    this.showLoginError('Failed to create admin user. Please check Firebase configuration.');
-                    this.setLoginLoading(false);
-                    return;
-                }
-            }
-            
-            this.showLoginError(this.getErrorMessage(error.code));
-            this.setLoginLoading(false);
-        }
-    }
-    
-    async createAdminUser(email, password) {
-        try {
-            console.log('🔧 Creating admin user...');
-            
-            // Create the user account
-            const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
-            const user = userCredential.user;
-            
-            console.log('✅ Admin user created:', user.uid);
-            
-            // Create admin role document
-            await window.setDoc(window.doc(window.db, 'admin_users', user.uid), {
-                role: 'admin',
-                email: email,
-                createdAt: new Date().toISOString(),
-                createdBy: 'system'
-            });
-            
-            console.log('✅ Admin role created successfully');
-            this.setLoginLoading(false);
-            
-            // Show success message
-            this.showSuccessMessage('Admin user created successfully! You are now logged in.');
-            
-        } catch (error) {
-            console.error('❌ Failed to create admin user:', error);
-            this.setLoginLoading(false);
-            
-            let errorMessage = 'Failed to create admin user. ';
-            if (error.code === 'auth/email-already-in-use') {
-                errorMessage += 'Email is already in use.';
-            } else if (error.code === 'auth/weak-password') {
-                errorMessage += 'Password is too weak.';
-            } else if (error.code === 'auth/invalid-email') {
-                errorMessage += 'Invalid email address.';
-            } else {
-                errorMessage += 'Please check Firebase configuration.';
-            }
-            
-            this.showLoginError(errorMessage);
-            throw error;
-        }
-    }
-    
     async handleLogout() {
         try {
             await window.signOut(window.auth);
@@ -306,56 +240,12 @@ class AdminDashboard {
         }
     }
     
-    setLoginLoading(loading) {
-        const loginButton = document.getElementById('loginButton');
-        const loginButtonText = document.getElementById('loginButtonText');
-        const loginSpinner = document.getElementById('loginSpinner');
-        
-        if (loginButton) loginButton.disabled = loading;
-        if (loginButtonText) loginButtonText.style.display = loading ? 'none' : 'block';
-        if (loginSpinner) loginSpinner.style.display = loading ? 'block' : 'none';
-    }
-    
-    showLoginError(message) {
-        const loginError = document.getElementById('loginError');
-        if (loginError) {
-            loginError.textContent = message;
-            loginError.style.display = 'block';
-        }
-    }
-    
-    getErrorMessage(errorCode) {
-        switch (errorCode) {
-            case 'auth/user-not-found':
-                return 'No admin account found with this email address.';
-            case 'auth/wrong-password':
-                return 'Incorrect password.';
-            case 'auth/invalid-email':
-                return 'Invalid email address.';
-            case 'auth/too-many-requests':
-                return 'Too many failed attempts. Please try again later.';
-            case 'auth/weak-password':
-                return 'Password is too weak.';
-            case 'auth/email-already-in-use':
-                return 'Email is already in use.';
-            case 'auth/network-request-failed':
-                return 'Network error. Please check your connection.';
-            case 'auth/operation-not-allowed':
-                return 'Email/password authentication is not enabled.';
-            default:
-                return `Login failed: ${errorCode}. Please check your credentials.`;
-        }
-    }
-    
-    showLogin() {
-        document.getElementById('loginScreen').style.display = 'flex';
-        document.getElementById('dashboard').style.display = 'none';
+    redirectToLogin() {
+        console.log('🔄 Redirecting to login page...');
+        window.location.href = 'login.html';
     }
     
     showDashboard() {
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('dashboard').style.display = 'block';
-        
         // Update admin name
         const adminName = document.getElementById('adminName');
         if (adminName && this.currentUser) {
@@ -439,8 +329,14 @@ class AdminDashboard {
                 const timeLeft = endTime - now;
                 
                 if (timeLeft <= 0) {
-                    timerElement.textContent = 'Expired';
+                    // Quest has expired - show time since expiration
+                    const timeSinceExpiry = Math.abs(timeLeft);
+                    const expiredText = this.formatTimeSinceExpiry(timeSinceExpiry);
+                    timerElement.textContent = `Expired ${expiredText} ago`;
                     timerElement.className = 'quest-timer expired';
+                    
+                    // Add expired styling to the entire quest item
+                    item.classList.add('quest-expired');
                 } else {
                     const hours = Math.floor(timeLeft / (1000 * 60 * 60));
                     const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
@@ -453,6 +349,9 @@ class AdminDashboard {
                     } else {
                         timerElement.textContent = `${seconds}s`;
                     }
+                    
+                    // Remove expired styling
+                    item.classList.remove('quest-expired');
                     
                     // Change styling based on time remaining
                     if (timeLeft < 60000) { // Less than 1 minute
@@ -474,7 +373,9 @@ class AdminDashboard {
         const timeLeft = end - now;
         
         if (timeLeft <= 0) {
-            return { text: 'Expired', class: 'expired' };
+            const timeSinceExpiry = Math.abs(timeLeft);
+            const expiredText = this.formatTimeSinceExpiry(timeSinceExpiry);
+            return { text: `Expired ${expiredText} ago`, class: 'expired' };
         }
         
         const hours = Math.floor(timeLeft / (1000 * 60 * 60));
@@ -498,6 +399,24 @@ class AdminDashboard {
         }
         
         return { text, class: className };
+    }
+    
+    // Format time since expiry
+    formatTimeSinceExpiry(timeSinceExpiry) {
+        const days = Math.floor(timeSinceExpiry / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((timeSinceExpiry % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((timeSinceExpiry % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((timeSinceExpiry % (1000 * 60)) / 1000);
+        
+        if (days > 0) {
+            return `${days}d ${hours}h`;
+        } else if (hours > 0) {
+            return `${hours}h ${minutes}m`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${seconds}s`;
+        } else {
+            return `${seconds}s`;
+        }
     }
     
     showSuccessNotification(email, password) {
@@ -527,6 +446,9 @@ class AdminDashboard {
             await this.loadPlayers();
             await this.loadLeaderboard();
             await this.loadQuests();
+            await this.loadFeedback();
+            await this.loadMissions();
+            await this.loadDaygrades();
             
             console.log('✅ Dashboard data loaded');
         } catch (error) {
@@ -548,7 +470,6 @@ class AdminDashboard {
                 });
             });
             
-            this.renderPlayers();
             this.updateQuestPlayerSelect();
         } catch (error) {
             console.error('❌ Error loading players:', error);
@@ -574,6 +495,36 @@ class AdminDashboard {
             this.renderQuests();
         } catch (error) {
             console.error('❌ Error loading quests:', error);
+        }
+    }
+    
+    async loadFeedback() {
+        try {
+            console.log('📝 Loading feedback data...');
+            await this.loadFeedbackFromFirebase();
+            this.renderFeedback();
+        } catch (error) {
+            console.error('❌ Error loading feedback:', error);
+        }
+    }
+    
+    async loadMissions() {
+        try {
+            console.log('🎯 Loading missions data...');
+            await this.loadMissionsFromFirebase();
+            this.renderMissions();
+        } catch (error) {
+            console.error('❌ Error loading missions:', error);
+        }
+    }
+    
+        async loadDaygrades() {
+            try {
+                console.log('📊 Loading daygrades data...');
+                await this.loadDaygradesFromFirebase();
+                this.renderDaygrades();
+            } catch (error) {
+                console.error('❌ Error loading daygrades:', error);
         }
     }
     
@@ -636,31 +587,6 @@ class AdminDashboard {
         await this.loadLeaderboard();
     }
     
-    renderPlayers() {
-        const playersList = document.getElementById('playersList');
-        if (!playersList) return;
-        
-        if (this.players.length === 0) {
-            playersList.innerHTML = '<div class="empty-state"><h4>No players found</h4><p>Players will appear here once they register</p></div>';
-            return;
-        }
-        
-        playersList.innerHTML = this.players.map(player => `
-            <div class="list-item">
-                <div class="item-info">
-                    <div class="item-title">
-                        ${player.skin ? `<img src="${player.skin}" alt="Skin" class="player-skin-preview" onerror="this.style.display='none'">` : ''}
-                        ${player.name || 'Unknown Player'}
-                    </div>
-                    <div class="item-subtitle">${player.email} • Level ${player.level || 1} • ${player.points || 0} DZD • Last login: ${this.formatLastLogin(player.lastLogin)}</div>
-                </div>
-                <div class="item-actions">
-                    <button class="btn btn-primary" onclick="adminDashboard.editPlayer('${player.id}')">Edit</button>
-                    <button class="btn btn-danger" onclick="adminDashboard.deletePlayer('${player.id}')">Delete</button>
-                </div>
-            </div>
-        `).join('');
-    }
     
     renderQuests() {
         const questsList = document.getElementById('questsList');
@@ -677,15 +603,20 @@ class AdminDashboard {
                 this.players.find(p => p.id === quest.assignedPlayer)?.name || 'Unknown Player' : 
                 'All Players';
             
+            // Check quest status
+            const isCompleted = quest.status === 'completed';
+            const isPlayerDone = quest.status === 'player_done';
+            const isExpired = timerInfo.class === 'expired';
+            
             return `
-                <div class="quest-item">
+                <div class="quest-item ${isCompleted ? 'quest-completed' : ''} ${isPlayerDone ? 'quest-player-done' : ''} ${isExpired ? 'quest-expired' : ''}">
                     <div class="quest-info">
                         <div class="quest-logo">${quest.logo || '📍'}</div>
                         <div class="quest-details">
                             <div class="quest-title">
                                 ${quest.name}
                                 <span class="quest-timer ${timerInfo.class}" data-end-time="${quest.endTime}">
-                                    ${timerInfo.text}
+                                    ${isCompleted ? '✅ Completed' : isPlayerDone ? '⏳ Waiting for Approval' : timerInfo.text}
                                 </span>
                             </div>
                             <div class="quest-subtitle">${quest.description}</div>
@@ -697,12 +628,20 @@ class AdminDashboard {
                         </div>
                     </div>
                     <div class="quest-actions">
-                        <button class="btn btn-success" onclick="adminDashboard.approveQuest('${quest.id}')" title="Approve quest completion and award rewards">
-                            ✓ Approve
+                        ${isCompleted ? `
+                            <span class="quest-status-completed">✅ Completed & Rewarded</span>
+                        ` : isPlayerDone ? `
+                            <button class="btn btn-warning" onclick="adminDashboard.approveQuest('${quest.id}')" title="Approve quest completion and award rewards">
+                                ✓ Approve & Reward
+                            </button>
+                        ` : `
+                            <button class="btn btn-success" onclick="adminDashboard.approveQuest('${quest.id}')" title="Approve quest completion and award rewards">
+                                ✓ Approve
+                            </button>
+                        `}
+                        <button class="btn btn-info" onclick="adminDashboard.duplicateQuest('${quest.id}')" title="Duplicate this quest">
+                            📋
                         </button>
-                           <button class="btn btn-info" onclick="adminDashboard.duplicateQuest('${quest.id}')" title="Duplicate this quest">
-                               📋
-                           </button>
                         <button class="btn btn-primary" onclick="adminDashboard.editQuest('${quest.id}')">Edit</button>
                         <button class="btn btn-danger" onclick="adminDashboard.deleteQuest('${quest.id}')">Delete</button>
                     </div>
@@ -710,6 +649,790 @@ class AdminDashboard {
             `;
         }).join('');
     }
+    
+        renderFeedback() {
+            const feedbackList = document.getElementById('feedbackList');
+            if (!feedbackList) return;
+            
+            if (this.feedbackHistory.length === 0) {
+            feedbackList.innerHTML = '<div class="empty-state"><h4>No feedback sent yet</h4><p>Click "Add Feedback" to send feedback to players</p></div>';
+                return;
+            }
+            
+            // Show feedback history (most recent first)
+            const sortedFeedback = this.feedbackHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            
+            feedbackList.innerHTML = sortedFeedback.map(feedback => `
+                <div class="feedback-item">
+                    <div class="feedback-header">
+                        <div class="feedback-type ${feedback.type}">
+                            ${feedback.type === 'positive' ? '✅' : '❌'} ${feedback.type.toUpperCase()}
+                        </div>
+                        <div class="feedback-time">${new Date(feedback.timestamp).toLocaleString()}</div>
+                    </div>
+                    <div class="feedback-content">
+                        <h4>${feedback.title}</h4>
+                        <p><strong>To:</strong> ${feedback.playerName}</p>
+                        <p><strong>Message:</strong> ${feedback.message}</p>
+                        <p><strong>Sent by:</strong> ${feedback.sentByName || 'Admin'}</p>
+                    </div>
+                    <div class="feedback-actions">
+                        <span class="feedback-status ${feedback.status}">
+                            ${feedback.status === 'read' ? '✅ Read by Player' : '⏳ Pending Player Read'}
+                        </span>
+                        <button class="btn btn-sm btn-danger" onclick="adminDashboard.deleteFeedback('${feedback.id}')">
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        
+        async saveFeedbackToFirebase(feedback) {
+            try {
+                // Save to player's feedback collection
+                const playerFeedbackRef = doc(db, 'playerFeedback', feedback.playerId);
+                const playerFeedbackSnap = await getDoc(playerFeedbackRef);
+                
+                let playerFeedbacks = [];
+                if (playerFeedbackSnap.exists()) {
+                    playerFeedbacks = playerFeedbackSnap.data().feedbacks || [];
+                }
+                
+                playerFeedbacks.push(feedback);
+                
+                await setDoc(playerFeedbackRef, {
+                    playerId: feedback.playerId,
+                    playerName: feedback.playerName,
+                    feedbacks: playerFeedbacks,
+                    lastUpdated: new Date().toISOString()
+                });
+                
+                // Also save to admin feedback history
+                const adminFeedbackRef = doc(db, 'adminFeedback', 'history');
+                const adminFeedbackSnap = await getDoc(adminFeedbackRef);
+                
+                let adminFeedbacks = [];
+                if (adminFeedbackSnap.exists()) {
+                    adminFeedbacks = adminFeedbackSnap.data().feedbacks || [];
+                }
+                
+                adminFeedbacks.push(feedback);
+                
+                await setDoc(adminFeedbackRef, {
+                    feedbacks: adminFeedbacks,
+                    lastUpdated: new Date().toISOString()
+                });
+                
+            } catch (error) {
+                console.error('❌ Error saving feedback to Firebase:', error);
+                throw error;
+            }
+        }
+    
+    renderMissions() {
+        const missionList = document.getElementById('missionList');
+        if (!missionList) return;
+        
+        if (this.players.length === 0) {
+            missionList.innerHTML = '<div class="empty-state"><h4>No players found</h4><p>Players will appear here once they register</p></div>';
+            return;
+        }
+        
+        const today = new Date().toISOString().split('T')[0];
+        const todaySubmissions = this.missionSubmissions[today] || {};
+        
+        let html = '<div class="missions-header">';
+        html += `<h4>Daily Mission Submissions - ${new Date().toLocaleDateString()}</h4>`;
+        html += '<p>View what players submitted for today\'s missions</p>';
+        html += '</div>';
+        
+        html += '<div class="players-missions-list">';
+        
+        this.players.forEach(player => {
+            const submission = todaySubmissions[player.id];
+            const hasSubmitted = submission && submission.status === 'submitted';
+            const submissionCount = submission ? submission.submissions.length : 0;
+            
+            html += `
+                <div class="player-mission-card ${hasSubmitted ? 'submitted' : ''}" data-player-id="${player.id}">
+                    <div class="player-mission-header">
+                        <div class="player-mission-info">
+                            <div class="player-mission-avatar">
+                                <img src="${player.skin || 'default-skin.png'}" alt="${player.name}" class="player-skin" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                <div class="player-fallback" style="display: none;">${player.name.charAt(0).toUpperCase()}</div>
+                            </div>
+                            <div class="player-mission-details">
+                                <h5>${player.name}</h5>
+                                <p>${submissionCount} submission${submissionCount !== 1 ? 's' : ''} today</p>
+                            </div>
+                        </div>
+                        <div class="mission-status">
+                            <div class="status-dot ${hasSubmitted ? 'submitted' : 'pending'}"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="mission-actions">
+                        <button class="view-submissions-btn" data-player-id="${player.id}">
+                            ${hasSubmitted ? 'View Submissions' : 'No Submissions'}
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        
+        missionList.innerHTML = html;
+        
+        // Add event listeners
+        this.setupMissionsEventListeners();
+    }
+    
+    setupMissionsEventListeners() {
+        // View submissions buttons
+        document.querySelectorAll('.view-submissions-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const playerId = e.target.getAttribute('data-player-id');
+                this.viewPlayerSubmissions(playerId);
+            });
+        });
+    }
+    
+    viewPlayerSubmissions(playerId) {
+        const today = new Date().toISOString().split('T')[0];
+            const player = this.players.find(p => p.id === playerId);
+        const submission = this.missionSubmissions[today]?.[playerId];
+        
+        if (!submission || !submission.submissions || submission.submissions.length === 0) {
+            this.showError(`${player?.name || 'Player'} has no submissions for today`);
+            return;
+        }
+        
+        // Create modal content
+        let modalContent = `
+            <div class="submissions-modal">
+                <div class="submissions-header">
+                    <h3>${player?.name || 'Player'}'s Submissions - ${new Date().toLocaleDateString()}</h3>
+                    <button class="close-submissions-btn">&times;</button>
+                </div>
+                <div class="submissions-content">
+        `;
+        
+        submission.submissions.forEach((sub, index) => {
+            modalContent += `
+                <div class="submission-item">
+                    <div class="submission-header">
+                        <h4>Submission ${index + 1}</h4>
+                        <span class="submission-time">${new Date(sub.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    <div class="submission-details">
+                        <p><strong>Mission:</strong> ${sub.missionName || 'Daily Mission'}</p>
+                        <p><strong>Description:</strong> ${sub.description}</p>
+                        ${sub.evidence ? `<p><strong>Evidence:</strong> <a href="${sub.evidence}" target="_blank">View Evidence</a></p>` : ''}
+                        ${sub.notes ? `<p><strong>Notes:</strong> ${sub.notes}</p>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+        
+        modalContent += `
+                </div>
+            </div>
+        `;
+        
+        // Show modal
+        this.showSubmissionsModal(modalContent);
+    }
+    
+    showSubmissionsModal(content) {
+        // Create modal overlay
+        const modalOverlay = document.createElement('div');
+        modalOverlay.className = 'modal-overlay';
+        modalOverlay.innerHTML = content;
+        
+        // Add to body
+        document.body.appendChild(modalOverlay);
+        
+        // Add close event listener
+        const closeBtn = modalOverlay.querySelector('.close-submissions-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                document.body.removeChild(modalOverlay);
+            });
+        }
+        
+        // Close on overlay click
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) {
+                document.body.removeChild(modalOverlay);
+            }
+        });
+    }
+    
+        renderDaygrades() {
+            const daygradesList = document.getElementById('daygradesList');
+            if (!daygradesList) return;
+            
+            if (this.players.length === 0) {
+                daygradesList.innerHTML = '<div class="empty-state"><h4>No players found</h4><p>Players will appear here once they register</p></div>';
+                return;
+            }
+            
+            const today = new Date().toISOString().split('T')[0];
+            const todayGrades = this.daygrades[today] || {};
+            
+            let html = '<div class="daygrades-header">';
+            html += `<h4>Daily Grades - ${new Date().toLocaleDateString()}</h4>`;
+            html += '<p>Grade each player out of 5 for today\'s performance</p>';
+            html += '</div>';
+            
+            html += '<div class="players-grading-list">';
+            
+            this.players.forEach(player => {
+                const currentGrade = todayGrades[player.id] || '';
+                const gradeValue = currentGrade ? currentGrade.grade : '';
+                const isGraded = gradeValue !== '';
+                
+                html += `
+                    <div class="player-grade-card ${isGraded ? 'graded' : ''}" data-player-id="${player.id}">
+                        <div class="player-grade-header">
+                            <div class="player-grade-info">
+                                <div class="player-grade-avatar">
+                                    <img src="${player.skin || 'default-skin.png'}" alt="${player.name}" class="player-skin" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                    <div class="player-fallback" style="display: none;">${player.name.charAt(0).toUpperCase()}</div>
+                                </div>
+                                <div class="player-grade-details">
+                                    <h5>${player.name}</h5>
+                                </div>
+                            </div>
+                            <div class="grade-status">
+                                <div class="status-dot ${isGraded ? 'graded' : 'pending'}"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="star-grading">
+                            <div class="stars-container">
+                                ${[1, 2, 3, 4, 5].map(star => `
+                                    <button class="star-btn ${parseInt(gradeValue) >= star ? 'active' : ''}" 
+                                            data-grade="${star}" 
+                                            data-player-id="${player.id}">
+                                        ⭐
+                                    </button>
+                                `).join('')}
+                            </div>
+                            <div class="grade-actions">
+                                <button class="clear-grade-btn" data-player-id="${player.id}">Clear</button>
+                                <button class="save-grade-btn" data-player-id="${player.id}">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            daygradesList.innerHTML = html;
+            
+            // Add event listeners for grade inputs
+            this.setupDaygradesEventListeners();
+        }
+        
+        setupDaygradesEventListeners() {
+            // Star rating buttons - just for visual selection
+            document.querySelectorAll('.star-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const playerId = e.target.getAttribute('data-player-id');
+                    const grade = e.target.getAttribute('data-grade');
+                    this.selectStarGrade(playerId, grade);
+                });
+            });
+            
+            // Save grade buttons
+            document.querySelectorAll('.save-grade-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const playerId = e.target.getAttribute('data-player-id');
+                    this.savePlayerGrade(playerId);
+                });
+            });
+            
+            // Clear grade buttons
+            document.querySelectorAll('.clear-grade-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const playerId = e.target.getAttribute('data-player-id');
+                    this.clearPlayerGrade(playerId);
+                });
+            });
+        }
+        
+        selectStarGrade(playerId, grade) {
+            // Update visual selection without saving
+            const card = document.querySelector(`[data-player-id="${playerId}"]`);
+            if (!card) return;
+            
+            const stars = card.querySelectorAll('.star-btn');
+            stars.forEach((star, index) => {
+                if (index < parseInt(grade)) {
+                    star.classList.add('active');
+        } else {
+                    star.classList.remove('active');
+                }
+            });
+            
+            // Store selected grade temporarily
+            card.setAttribute('data-selected-grade', grade);
+        }
+        
+        async savePlayerGrade(playerId) {
+            try {
+                const card = document.querySelector(`[data-player-id="${playerId}"]`);
+                if (!card) return;
+                
+                const selectedGrade = card.getAttribute('data-selected-grade');
+                if (!selectedGrade) {
+                    this.showError('Please select a grade first');
+                    return;
+                }
+                
+                const today = new Date().toISOString().split('T')[0];
+                const player = this.players.find(p => p.id === playerId);
+                const playerName = player ? player.name : 'Unknown Player';
+                
+                // Initialize daygrades for today if not exists
+                if (!this.daygrades[today]) {
+                    this.daygrades[today] = {};
+                }
+                
+                // Save grade data
+                this.daygrades[today][playerId] = {
+                    grade: selectedGrade,
+                    timestamp: new Date().toISOString(),
+                    gradedBy: this.currentUser.uid
+                };
+                
+                // Save to Firebase
+                await this.saveDaygradesToFirebase(today);
+                
+                // Update UI
+                this.renderDaygrades();
+                
+                console.log(`✅ Grade saved for player ${playerId}: ${selectedGrade}/5`);
+                
+                // Show success message with star count
+                const starText = selectedGrade === '1' ? 'star' : 'stars';
+                this.showSuccess(`${playerName} now has ${selectedGrade} ${starText} ⭐`);
+                
+            } catch (error) {
+                console.error('❌ Error saving grade:', error);
+                this.showError('Failed to save grade');
+            }
+        }
+        
+        async clearPlayerGrade(playerId) {
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const player = this.players.find(p => p.id === playerId);
+                const playerName = player ? player.name : 'Unknown Player';
+                
+                // Clear visual selection
+                const card = document.querySelector(`[data-player-id="${playerId}"]`);
+                if (card) {
+                    const stars = card.querySelectorAll('.star-btn');
+                    stars.forEach(star => star.classList.remove('active'));
+                    card.removeAttribute('data-selected-grade');
+                }
+                
+                // Clear saved grade if exists
+                if (this.daygrades[today] && this.daygrades[today][playerId]) {
+                    delete this.daygrades[today][playerId];
+                    
+                    // Save to Firebase
+                    await this.saveDaygradesToFirebase(today);
+                    
+                    // Update UI
+                    this.renderDaygrades();
+                    
+                    console.log(`✅ Grade cleared for player ${playerId}`);
+                    this.showSuccess(`${playerName}'s grade has been cleared`);
+                } else {
+                    console.log(`✅ Visual selection cleared for player ${playerId}`);
+                    this.showSuccess('Selection cleared');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error clearing grade:', error);
+                this.showError('Failed to clear grade');
+            }
+        }
+        
+        async saveDaygradesToFirebase(date) {
+            try {
+                const daygradesRef = doc(db, 'daygrades', date);
+                await setDoc(daygradesRef, this.daygrades[date], { merge: true });
+            } catch (error) {
+                console.error('❌ Error saving daygrades to Firebase:', error);
+                throw error;
+            }
+        }
+        
+        async loadDaygradesFromFirebase() {
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const daygradesRef = doc(db, 'daygrades', today);
+                const daygradesSnap = await getDoc(daygradesRef);
+                
+                if (daygradesSnap.exists()) {
+                    this.daygrades[today] = daygradesSnap.data();
+                } else {
+                    this.daygrades[today] = {};
+                }
+                
+                console.log('📊 Daygrades loaded from Firebase');
+            } catch (error) {
+                console.error('❌ Error loading daygrades:', error);
+            }
+        }
+        
+        async loadMissionsFromFirebase() {
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const missionsRef = doc(db, 'missions', today);
+                const missionsSnap = await getDoc(missionsRef);
+                
+                if (missionsSnap.exists()) {
+                    this.missionSubmissions[today] = missionsSnap.data();
+                } else {
+                    this.missionSubmissions[today] = {};
+                }
+                
+                console.log('🎯 Missions loaded from Firebase');
+            } catch (error) {
+                console.error('❌ Error loading missions:', error);
+            }
+        }
+        
+        async loadFeedbackFromFirebase() {
+            try {
+                // Load admin feedback history
+                const adminFeedbackRef = doc(db, 'adminFeedback', 'history');
+                const adminFeedbackSnap = await getDoc(adminFeedbackRef);
+                
+                if (adminFeedbackSnap.exists()) {
+                    this.feedbackHistory = adminFeedbackSnap.data().feedbacks || [];
+                } else {
+                    this.feedbackHistory = [];
+                }
+                
+                console.log('📝 Feedback loaded from Firebase');
+            } catch (error) {
+                console.error('❌ Error loading feedback:', error);
+            }
+        }
+        
+        async saveMissionsToFirebase(date) {
+            try {
+                const missionsRef = doc(db, 'missions', date);
+                await setDoc(missionsRef, this.missionSubmissions[date], { merge: true });
+                console.log('🎯 Missions saved to Firebase for', date);
+            } catch (error) {
+                console.error('❌ Error saving missions to Firebase:', error);
+                throw error;
+            }
+        }
+        
+        // Method to add a mission submission (can be called from game)
+        async addMissionSubmission(playerId, submissionData) {
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                
+                // Initialize missions for today if not exists
+                if (!this.missionSubmissions[today]) {
+                    this.missionSubmissions[today] = {};
+                }
+                
+                // Initialize player submissions if not exists
+                if (!this.missionSubmissions[today][playerId]) {
+                    this.missionSubmissions[today][playerId] = {
+                        playerId: playerId,
+                        playerName: this.players.find(p => p.id === playerId)?.name || 'Unknown Player',
+                        status: 'submitted',
+                        submissions: []
+                    };
+                }
+                
+                // Add new submission
+                const submission = {
+                    id: Date.now().toString(),
+                    missionName: submissionData.missionName || 'Daily Mission',
+                    description: submissionData.description || '',
+                    evidence: submissionData.evidence || '',
+                    notes: submissionData.notes || '',
+                    timestamp: new Date().toISOString()
+                };
+                
+                this.missionSubmissions[today][playerId].submissions.push(submission);
+                
+                // Save to Firebase
+                await this.saveMissionsToFirebase(today);
+                
+                // Update UI if on missions tab
+                if (this.currentTab === 'missions') {
+                    this.renderMissions();
+                }
+                
+                console.log(`✅ Mission submission added for player ${playerId}`);
+                return true;
+                
+            } catch (error) {
+                console.error('❌ Error adding mission submission:', error);
+                return false;
+            }
+        }
+        
+        // Method to send feedback to player (can be called from game)
+        async sendFeedbackToPlayer(playerId, feedbackData) {
+            try {
+                const player = this.players.find(p => p.id === playerId);
+                if (!player) {
+                    console.error('❌ Player not found:', playerId);
+                    return false;
+                }
+                
+                const feedback = {
+                    id: Date.now().toString(),
+                    playerId: playerId,
+                    playerName: player.name || 'Unknown Player',
+                    type: feedbackData.type || 'positive',
+                    title: feedbackData.title || 'Feedback',
+                    message: feedbackData.message || '',
+                    timestamp: new Date().toISOString(),
+                    sentBy: this.currentUser?.uid || 'system',
+                    sentByName: this.currentUser?.displayName || 'Admin',
+                    status: 'unread',
+                    gameNotification: true
+                };
+                
+                // Save to Firebase
+                await this.saveFeedbackToFirebase(feedback);
+                
+                // Add to local history
+                this.feedbackHistory.push(feedback);
+                
+                // Update UI if on feedback tab
+                if (this.currentTab === 'feedback') {
+                    this.renderFeedback();
+                }
+                
+                console.log(`✅ Feedback sent to player ${player.name}`);
+                return true;
+                
+            } catch (error) {
+                console.error('❌ Error sending feedback:', error);
+                return false;
+            }
+        }
+        
+        // Method to mark feedback as read (called by player from game)
+        async markFeedbackAsReadByPlayer(feedbackId, playerId) {
+            try {
+                // Find feedback in local history
+                const feedback = this.feedbackHistory.find(f => f.id === feedbackId);
+                if (!feedback) {
+                    console.error('❌ Feedback not found:', feedbackId);
+                    return false;
+                }
+                
+                // Verify this feedback belongs to the player
+                if (feedback.playerId !== playerId) {
+                    console.error('❌ Feedback does not belong to this player');
+                    return false;
+                }
+                
+                // Update status
+                feedback.status = 'read';
+                feedback.readAt = new Date().toISOString();
+                
+                // Update in Firebase - both player and admin collections
+                await this.updateFeedbackInFirebase(feedback);
+                
+                // Update UI if on feedback tab
+                if (this.currentTab === 'feedback') {
+                    this.renderFeedback();
+                }
+                
+                console.log(`✅ Feedback marked as read by player: ${feedbackId}`);
+                return true;
+                
+            } catch (error) {
+                console.error('❌ Error marking feedback as read by player:', error);
+                return false;
+            }
+        }
+        
+        // Method to delete feedback
+        async deleteFeedback(feedbackId) {
+            try {
+                if (!confirm('Are you sure you want to delete this feedback? This action cannot be undone.')) {
+                    return;
+                }
+                
+                // Find feedback in local history
+                const feedback = this.feedbackHistory.find(f => f.id === feedbackId);
+                if (!feedback) {
+                    console.error('❌ Feedback not found:', feedbackId);
+                    return;
+                }
+                
+                // Remove from local history
+                this.feedbackHistory = this.feedbackHistory.filter(f => f.id !== feedbackId);
+                
+                // Remove from Firebase - both player and admin collections
+                await this.removeFeedbackFromFirebase(feedback);
+                
+                // Update UI
+                this.renderFeedback();
+                
+                console.log(`✅ Feedback deleted: ${feedbackId}`);
+                this.showSuccess('Feedback deleted successfully');
+                
+            } catch (error) {
+                console.error('❌ Error deleting feedback:', error);
+                this.showError('Failed to delete feedback');
+            }
+        }
+        
+        // Helper method to update feedback in Firebase
+        async updateFeedbackInFirebase(feedback) {
+            try {
+                // Update player's feedback collection
+                const playerFeedbackRef = doc(db, 'playerFeedback', feedback.playerId);
+                const playerFeedbackSnap = await getDoc(playerFeedbackRef);
+                
+                if (playerFeedbackSnap.exists()) {
+                    let playerFeedbacks = playerFeedbackSnap.data().feedbacks || [];
+                    const feedbackIndex = playerFeedbacks.findIndex(f => f.id === feedback.id);
+                    
+                    if (feedbackIndex !== -1) {
+                        playerFeedbacks[feedbackIndex] = feedback;
+                        
+                        await setDoc(playerFeedbackRef, {
+                            playerId: feedback.playerId,
+                            playerName: feedback.playerName,
+                            feedbacks: playerFeedbacks,
+                            lastUpdated: new Date().toISOString()
+                        });
+                    }
+                }
+                
+                // Update admin feedback history
+                const adminFeedbackRef = doc(db, 'adminFeedback', 'history');
+                const adminFeedbackSnap = await getDoc(adminFeedbackRef);
+                
+                if (adminFeedbackSnap.exists()) {
+                    let adminFeedbacks = adminFeedbackSnap.data().feedbacks || [];
+                    const feedbackIndex = adminFeedbacks.findIndex(f => f.id === feedback.id);
+                    
+                    if (feedbackIndex !== -1) {
+                        adminFeedbacks[feedbackIndex] = feedback;
+                        
+                        await setDoc(adminFeedbackRef, {
+                            feedbacks: adminFeedbacks,
+                            lastUpdated: new Date().toISOString()
+                        });
+                    }
+                }
+                
+            } catch (error) {
+                console.error('❌ Error updating feedback in Firebase:', error);
+                throw error;
+            }
+        }
+        
+        // Helper method to remove feedback from Firebase
+        async removeFeedbackFromFirebase(feedback) {
+            try {
+                // Remove from player's feedback collection
+                const playerFeedbackRef = doc(db, 'playerFeedback', feedback.playerId);
+                const playerFeedbackSnap = await getDoc(playerFeedbackRef);
+                
+                if (playerFeedbackSnap.exists()) {
+                    let playerFeedbacks = playerFeedbackSnap.data().feedbacks || [];
+                    playerFeedbacks = playerFeedbacks.filter(f => f.id !== feedback.id);
+                    
+                    await setDoc(playerFeedbackRef, {
+                        playerId: feedback.playerId,
+                        playerName: feedback.playerName,
+                        feedbacks: playerFeedbacks,
+                        lastUpdated: new Date().toISOString()
+                    });
+                }
+                
+                // Remove from admin feedback history
+                const adminFeedbackRef = doc(db, 'adminFeedback', 'history');
+                const adminFeedbackSnap = await getDoc(adminFeedbackRef);
+                
+                if (adminFeedbackSnap.exists()) {
+                    let adminFeedbacks = adminFeedbackSnap.data().feedbacks || [];
+                    adminFeedbacks = adminFeedbacks.filter(f => f.id !== feedback.id);
+                    
+                    await setDoc(adminFeedbackRef, {
+                        feedbacks: adminFeedbacks,
+                        lastUpdated: new Date().toISOString()
+                    });
+                }
+                
+            } catch (error) {
+                console.error('❌ Error removing feedback from Firebase:', error);
+                throw error;
+            }
+        }
+        
+        setupMidnightRefresh() {
+            // Calculate time until next midnight
+            const now = new Date();
+            const midnight = new Date(now);
+            midnight.setHours(24, 0, 0, 0); // Next midnight
+            
+            const timeUntilMidnight = midnight.getTime() - now.getTime();
+            
+            console.log(`🕛 Next daygrades refresh scheduled for: ${midnight.toLocaleString()}`);
+            
+            // Set timeout for midnight refresh
+            setTimeout(() => {
+                this.refreshDaygradesForNewDay();
+                
+                // Set up daily refresh interval (every 24 hours)
+                setInterval(() => {
+                    this.refreshDaygradesForNewDay();
+                }, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
+                
+            }, timeUntilMidnight);
+        }
+        
+        refreshDaygradesForNewDay() {
+            console.log('🔄 Refreshing daygrades for new day...');
+            
+            // Clear current day's grades
+            this.daygrades = {};
+            
+            // Clear any visual selections in the UI
+            document.querySelectorAll('.player-grade-card').forEach(card => {
+                const stars = card.querySelectorAll('.star-btn');
+                stars.forEach(star => star.classList.remove('active'));
+                card.removeAttribute('data-selected-grade');
+            });
+            
+            // Re-render the daygrades UI to show blank state
+            if (this.currentTab === 'daygrades') {
+                this.renderDaygrades();
+            }
+            
+            // Show notification
+            this.showSuccess('New day started! All players reset to 0 stars. Ready for fresh grading.');
+            
+            console.log('✅ Daygrades refreshed for new day - all players reset to blank');
+        }
     
     updateQuestPlayerSelect() {
         const questPlayerSelect = document.getElementById('questPlayer');
@@ -721,39 +1444,6 @@ class AdminDashboard {
             ).join('');
     }
     
-    showPlayerModal(playerId = null) {
-        const modal = document.getElementById('playerModal');
-        const title = document.getElementById('playerModalTitle');
-        const form = document.getElementById('playerForm');
-        
-        if (playerId) {
-            // Edit mode
-            const player = this.players.find(p => p.id === playerId);
-            if (player) {
-                title.textContent = 'Edit Player';
-                document.getElementById('playerId').value = player.id;
-                document.getElementById('playerEmail').value = player.email || '';
-                document.getElementById('playerPassword').value = '';
-                document.getElementById('playerName').value = player.name || '';
-                document.getElementById('playerSkin').value = player.skin || '';
-                document.getElementById('playerCoins').value = player.points || 0;
-                document.getElementById('playerLevel').value = player.level || 1;
-                document.getElementById('playerXP').value = player.experience || 0;
-            }
-        } else {
-            // Add mode
-            title.textContent = 'Add Player';
-            form.reset();
-            document.getElementById('playerId').value = '';
-        }
-        
-        modal.classList.add('show');
-    }
-    
-    hidePlayerModal() {
-        const modal = document.getElementById('playerModal');
-        modal.classList.remove('show');
-    }
     
     showQuestModal(questId = null) {
         const modal = document.getElementById('questModal');
@@ -797,74 +1487,184 @@ class AdminDashboard {
         modal.classList.remove('show');
     }
     
-    async handlePlayerSubmit(e) {
-        e.preventDefault();
-        
-        const formData = {
-            email: document.getElementById('playerEmail').value,
-            password: document.getElementById('playerPassword').value,
-            name: document.getElementById('playerName').value,
-            skin: document.getElementById('playerSkin').value,
-            points: parseInt(document.getElementById('playerCoins').value) || 0,
-            level: parseInt(document.getElementById('playerLevel').value) || 1,
-            experience: parseInt(document.getElementById('playerXP').value) || 0
-        };
-        
-        // Validate email format
-        if (!this.isValidEmail(formData.email)) {
-            this.showError('Please enter a valid email address (e.g., user@example.com)');
-            return;
+    goToPlayersPage() {
+        window.location.href = 'players.html';
+    }
+    
+    // Placeholder methods for new sections
+        showFeedbackModal() {
+            console.log('📝 Opening feedback modal...');
+            this.showFeedbackForm();
         }
         
-        const playerId = document.getElementById('playerId').value;
+        showFeedbackForm() {
+            const feedbackModal = document.getElementById('feedbackModal');
+            if (!feedbackModal) return;
+            
+            // Populate player dropdown
+            this.populateFeedbackPlayerSelect();
+            
+            // Show modal
+            feedbackModal.style.display = 'flex';
+            
+            // Add event listeners for modal
+            this.setupFeedbackModalEventListeners();
+        }
         
-        try {
-            if (playerId) {
-                // Update existing player
-                await window.updateDoc(window.doc(window.db, 'users', playerId), {
-                    name: formData.name,
-                    skin: formData.skin,
-                    points: formData.points,
-                    level: formData.level,
-                    experience: formData.experience
-                });
-                console.log('✅ Player updated');
-            } else {
-                // Create new player with Firebase Auth account
-                if (!formData.password) {
-                    throw new Error('Password is required for new players');
-                }
-                
-                // Create user document in Firestore with a custom UID
-                // The game will handle Firebase Auth creation on first login
-                const customUserId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                
-                await window.setDoc(window.doc(window.db, 'users', customUserId), {
-                    email: formData.email,
-                    name: formData.name,
-                    skin: formData.skin,
-                    points: formData.points,
-                    level: formData.level,
-                    experience: formData.experience,
-                    createdAt: new Date().toISOString(),
-                    password: formData.password, // Store password for first-time auth creation
-                    needsAuthCreation: true // Flag to indicate this user needs Firebase Auth account
-                });
-                
-                console.log('✅ Player created in Firestore with custom ID:', customUserId);
-                
-                // Show success notification with login credentials
-                this.showSuccessNotification(formData.email, formData.password);
+        populateFeedbackPlayerSelect() {
+            const playerSelect = document.getElementById('feedbackPlayer');
+            if (!playerSelect) return;
+            
+            // Clear existing options except first one
+            playerSelect.innerHTML = '<option value="">Choose a player...</option>';
+            
+            // Add players
+            this.players.forEach(player => {
+                const option = document.createElement('option');
+                option.value = player.id;
+                option.textContent = player.name;
+                playerSelect.appendChild(option);
+            });
+        }
+        
+        setupFeedbackModalEventListeners() {
+            // Close modal buttons
+            const closeBtn = document.getElementById('closeFeedbackModal');
+            const cancelBtn = document.getElementById('cancelFeedbackBtn');
+            const feedbackForm = document.getElementById('feedbackForm');
+            
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => this.hideFeedbackModal());
             }
             
-            this.hidePlayerModal();
-            await this.loadPlayers();
-            await this.loadLeaderboard();
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => this.hideFeedbackModal());
+            }
+            
+            if (feedbackForm) {
+                feedbackForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.handleFeedbackSubmit();
+                });
+            }
+        }
+        
+        hideFeedbackModal() {
+            const feedbackModal = document.getElementById('feedbackModal');
+            if (feedbackModal) {
+                feedbackModal.style.display = 'none';
+            }
+        }
+        
+        async handleFeedbackSubmit() {
+            try {
+                const playerId = document.getElementById('feedbackPlayer').value;
+                const feedbackType = document.getElementById('feedbackType').value;
+                const title = document.getElementById('feedbackTitle').value.trim();
+                const message = document.getElementById('feedbackMessage').value.trim();
+                
+                // Validation
+                if (!playerId) {
+                    this.showError('Please select a player');
+                    return;
+                }
+                
+                if (!feedbackType) {
+                    this.showError('Please select feedback type');
+                    return;
+                }
+                
+                if (!title) {
+                    this.showError('Please enter a title');
+                    return;
+                }
+                
+                if (!message) {
+                    this.showError('Please enter a message');
+                    return;
+                }
+                
+                // Create feedback object
+                const feedback = {
+                    id: Date.now().toString(),
+                    playerId: playerId,
+                    playerName: this.players.find(p => p.id === playerId)?.name || 'Unknown Player',
+                    type: feedbackType,
+                    title: title,
+                    message: message,
+                    timestamp: new Date().toISOString(),
+                    sentBy: this.currentUser.uid,
+                    sentByName: this.currentUser.displayName || 'Admin',
+                    status: 'unread',
+                    gameNotification: true
+                };
+                
+                // Save to Firebase
+                await this.saveFeedbackToFirebase(feedback);
+                
+                // Hide modal
+                this.hideFeedbackModal();
+                
+                // Clear form
+                document.getElementById('feedbackForm').reset();
+                
+                console.log(`✅ Feedback sent to player ${feedback.playerName}`);
+                this.showSuccess(`Feedback sent to ${feedback.playerName}! They will see it in their game.`);
+                
         } catch (error) {
-            console.error('❌ Error saving player:', error);
-            this.showError('Failed to save player');
+                console.error('❌ Error sending feedback:', error);
+                this.showError('Failed to send feedback');
+            }
+        }
+    
+    showMissionModal() {
+        console.log('🎯 Mission modal - Coming soon!');
+        alert('Mission Management - Coming soon!');
+    }
+    
+        showDaygradeModal() {
+            console.log('📊 Daygrade modal - Already implemented in tab!');
+            // Switch to daygrades tab if not already active
+            if (this.currentTab !== 'daygrades') {
+                this.switchTab('daygrades');
+            }
+        }
+    
+    switchTab(tabName) {
+        console.log(`🔄 Switching to ${tabName} tab`);
+        
+        // Update current tab
+        this.currentTab = tabName;
+        
+        // Remove active class from all tabs and panels
+        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+        
+        // Add active class to selected tab and panel
+        const selectedTab = document.getElementById(`${tabName}Tab`);
+        const selectedPanel = document.getElementById(`${tabName}Content`);
+        
+        if (selectedTab) selectedTab.classList.add('active');
+        if (selectedPanel) selectedPanel.classList.add('active');
+        
+        // Load data for the selected tab
+        this.loadTabData(tabName);
+    }
+    
+    loadTabData(tabName) {
+        switch (tabName) {
+            case 'daygrades':
+                this.renderDaygrades();
+                break;
+            case 'feedback':
+                this.renderFeedback();
+                break;
+            case 'missions':
+                this.renderMissions();
+                break;
         }
     }
+    
     
     async handleQuestSubmit(e) {
         e.preventDefault();
@@ -908,25 +1708,6 @@ class AdminDashboard {
         }
     }
     
-    editPlayer(playerId) {
-        this.showPlayerModal(playerId);
-    }
-    
-    async deletePlayer(playerId) {
-        if (!confirm('Are you sure you want to delete this player? This action cannot be undone.')) {
-            return;
-        }
-        
-        try {
-            await window.deleteDoc(window.doc(window.db, 'users', playerId));
-            console.log('✅ Player deleted');
-            await this.loadPlayers();
-            await this.loadLeaderboard();
-        } catch (error) {
-            console.error('❌ Error deleting player:', error);
-            this.showError('Failed to delete player');
-        }
-    }
     
     editQuest(questId) {
         this.showQuestModal(questId);
@@ -1073,8 +1854,20 @@ class AdminDashboard {
             }
         }
         
-        // Confirm approval
-        const confirmMessage = `Approve quest completion for ${player.name}?\n\nRewards:\n• ${quest.xpReward || 0} XP\n• ${quest.coinsReward || 0} DZD\n\nThis action cannot be undone.`;
+        // Check if quest is already completed
+        if (quest.status === 'completed') {
+            this.showError('This quest has already been completed and rewarded.');
+            return;
+        }
+        
+        // Different confirmation message based on quest status
+        let confirmMessage;
+        if (quest.status === 'player_done') {
+            confirmMessage = `Approve quest completion for ${player.name}?\n\nPlayer has marked this quest as done.\n\nRewards to be given:\n• ${quest.xpReward || 0} XP\n• ${quest.coinsReward || 0} DZD\n\nThis action cannot be undone.`;
+        } else {
+            confirmMessage = `Approve quest completion for ${player.name}?\n\nRewards:\n• ${quest.xpReward || 0} XP\n• ${quest.coinsReward || 0} DZD\n\nThis action cannot be undone.`;
+        }
+        
         if (!confirm(confirmMessage)) {
             return;
         }
@@ -1118,7 +1911,13 @@ class AdminDashboard {
             });
             
             // Show success message with level up notification
-            let successMessage = `Quest approved! ${player.name} received ${quest.xpReward || 0} XP and ${quest.coinsReward || 0} DZD.`;
+            let successMessage;
+            if (quest.status === 'player_done') {
+                successMessage = `Quest approved and rewarded! ${player.name} received ${quest.xpReward || 0} XP and ${quest.coinsReward || 0} DZD.`;
+            } else {
+                successMessage = `Quest approved! ${player.name} received ${quest.xpReward || 0} XP and ${quest.coinsReward || 0} DZD.`;
+            }
+            
             if (newLevel > currentLevel) {
                 const levelsGained = newLevel - currentLevel;
                 successMessage += `\n\n🎉 LEVEL UP! ${player.name} reached level ${newLevel}! (${levelsGained} level${levelsGained > 1 ? 's' : ''} gained)`;
@@ -1177,6 +1976,11 @@ class AdminDashboard {
             }
         }, 5000);
     }
+    
+    showSuccess(message) {
+        // Alias for showSuccessMessage for consistency
+        this.showSuccessMessage(message);
+    }
 }
 
 // Initialize the admin dashboard when the page loads
@@ -1189,6 +1993,36 @@ document.addEventListener('DOMContentLoaded', () => {
             return window.adminDashboard.refreshLeaderboard();
         } else {
             console.log("❌ Admin dashboard not initialized yet");
+        }
+    };
+    
+    // Make mission submission method available globally for game integration
+    window.addMissionSubmission = (playerId, submissionData) => {
+        if (window.adminDashboard) {
+            return window.adminDashboard.addMissionSubmission(playerId, submissionData);
+        } else {
+            console.log("❌ Admin dashboard not initialized yet");
+            return Promise.resolve(false);
+        }
+    };
+    
+    // Make feedback sending method available globally for game integration
+    window.sendFeedbackToPlayer = (playerId, feedbackData) => {
+        if (window.adminDashboard) {
+            return window.adminDashboard.sendFeedbackToPlayer(playerId, feedbackData);
+        } else {
+            console.log("❌ Admin dashboard not initialized yet");
+            return Promise.resolve(false);
+        }
+    };
+    
+    // Make feedback read method available globally for game integration
+    window.markFeedbackAsReadByPlayer = (feedbackId, playerId) => {
+        if (window.adminDashboard) {
+            return window.adminDashboard.markFeedbackAsReadByPlayer(feedbackId, playerId);
+        } else {
+            console.log("❌ Admin dashboard not initialized yet");
+            return Promise.resolve(false);
         }
     };
 });

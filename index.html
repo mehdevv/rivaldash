@@ -2,47 +2,37 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game Admin Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RivalDash</title>
     <link rel="icon" type="image/png" href="adminfav.png">
     <link rel="shortcut icon" type="image/png" href="adminfav.png">
     <link rel="apple-touch-icon" href="adminfav.png">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Login Screen -->
-    <div id="loginScreen" class="login-screen">
-        <div class="login-content">
-            <div class="login-header">
-                <h1>Admin Dashboard</h1>
-                <p>Please sign in to continue</p>
-            </div>
-            <form id="loginForm" class="login-form">
-                <div class="input-group">
-                    <input type="email" id="emailInput" placeholder="Admin Email" required>
-                </div>
-                <div class="input-group">
-                    <input type="password" id="passwordInput" placeholder="Password" required>
-                </div>
-                <button type="submit" id="loginButton" class="login-button">
-                    <span id="loginButtonText">Sign In</span>
-                    <div id="loginSpinner" class="login-spinner" style="display: none;"></div>
-                </button>
-                <div id="loginError" class="login-error" style="display: none;"></div>
-            </form>
-        </div>
-    </div>
-
     <!-- Dashboard -->
-    <div id="dashboard" class="dashboard" style="display: none;">
+    <div id="dashboard" class="dashboard">
         <!-- Header -->
         <header class="dashboard-header">
             <div class="header-left">
-                <h1>Game Admin Dashboard</h1>
+                <img src="adminfav.png" alt="RivalDash" class="dashboard-logo">
+                <h1>RivalDash</h1>
             </div>
             <div class="header-right">
                 <span id="adminName" class="admin-name">Admin</span>
-                <button id="logoutButton" class="logout-button">Logout</button>
+                <button id="playersButton" class="icon-button players-button" title="View Players">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                </button>
+                <button id="logoutButton" class="icon-button logout-button" title="Logout">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16,17 21,12 16,7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                </button>
             </div>
         </header>
 
@@ -58,77 +48,60 @@
                 </div>
             </section>
 
-            <!-- Bottom Section -->
-            <section class="bottom-section">
-                <!-- Players Management -->
-                <div class="players-section">
+            <!-- Quests Management Section -->
+            <section class="quests-section">
                     <div class="section-header">
-                        <h3>Players Management</h3>
-                        <button id="addPlayerBtn" class="add-button">+ Add Player</button>
-                    </div>
-                    <div class="players-list" id="playersList">
-                        <!-- Players will be populated here -->
-                    </div>
-                </div>
-
-                <!-- Quests Management -->
-                <div class="quests-section">
-                    <div class="section-header">
-                        <h3>Quests Management</h3>
-                        <button id="addQuestBtn" class="add-button">+ Add Quest</button>
+                    <h2>Quests Management</h2>
+                    <button id="addQuestBtn" class="add-button">+ Add Quest</button>
                     </div>
                     <div class="quests-list" id="questsList">
                         <!-- Quests will be populated here -->
-                    </div>
                 </div>
             </section>
+
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+                <button id="daygradesTab" class="tab-button active" data-tab="daygrades">
+                    📊 Daygrades
+                </button>
+                <button id="feedbackTab" class="tab-button" data-tab="feedback">
+                    📝 Feedback
+                </button>
+                <button id="missionsTab" class="tab-button" data-tab="missions">
+                    🎯 Missions
+                </button>
+            </div>
+            
+            <!-- Tab Content -->
+            <div class="tab-content">
+                <!-- Daygrades Tab -->
+                <div id="daygradesContent" class="tab-panel active">
+                    <div class="daygrades-list" id="daygradesList">
+                        <!-- Daygrades will be populated here -->
+                    </div>
+                </div>
+                
+                <!-- Feedback Tab -->
+                <div id="feedbackContent" class="tab-panel">
+                    <div class="tab-panel-header">
+                        <h3>Feedback Management</h3>
+                        <button id="addFeedbackBtn" class="add-button">+ Add Feedback</button>
+                </div>
+                    <div class="feedback-list" id="feedbackList">
+                        <!-- Feedback will be populated here -->
+                </div>
+                </div>
+                
+                <!-- Missions Tab -->
+                <div id="missionsContent" class="tab-panel">
+                    <div class="mission-list" id="missionList">
+                        <!-- Missions will be populated here -->
+                    </div>
+                </div>
+        </div>
         </main>
     </div>
 
-    <!-- Player Edit Modal -->
-    <div id="playerModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="playerModalTitle">Edit Player</h3>
-                <button class="close-btn" id="closePlayerModal">&times;</button>
-            </div>
-            <form id="playerForm" class="modal-form">
-                <input type="hidden" id="playerId">
-                <div class="form-group">
-                    <label for="playerEmail">Email:</label>
-                    <input type="email" id="playerEmail" required>
-                </div>
-                <div class="form-group">
-                    <label for="playerPassword">Password:</label>
-                    <input type="password" id="playerPassword">
-                </div>
-                <div class="form-group">
-                    <label for="playerName">Name:</label>
-                    <input type="text" id="playerName" required>
-                </div>
-                <div class="form-group">
-                    <label for="playerSkin">Skin (Image URL):</label>
-                    <input type="url" id="playerSkin" placeholder="https://example.com/skin.png">
-                </div>
-                <div class="form-group">
-                    <label for="playerCoins">Coins (DZD):</label>
-                    <input type="number" id="playerCoins" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="playerLevel">Level:</label>
-                    <input type="number" id="playerLevel" min="1">
-                </div>
-                <div class="form-group">
-                    <label for="playerXP">Experience:</label>
-                    <input type="number" id="playerXP" min="0">
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" id="cancelPlayerBtn">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Player</button>
-                </div>
-            </form>
-        </div>
-    </div>
 
     <!-- Quest Edit Modal -->
     <div id="questModal" class="modal">
@@ -204,6 +177,48 @@
         </div>
     </div>
 
+    <!-- Feedback Modal -->
+    <div id="feedbackModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Send Feedback to Player</h3>
+                <button class="close-btn" id="closeFeedbackModal">&times;</button>
+            </div>
+            <form id="feedbackForm" class="modal-form">
+                <div class="form-group">
+                    <label for="feedbackPlayer">Select Player:</label>
+                    <select id="feedbackPlayer" class="feedback-select" required>
+                        <option value="">Choose a player...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="feedbackType">Feedback Type:</label>
+                    <select id="feedbackType" class="feedback-select" required>
+                        <option value="">Select type...</option>
+                        <option value="positive">✅ Positive Feedback</option>
+                        <option value="negative">❌ Negative Feedback</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="feedbackTitle">Title:</label>
+                    <input type="text" id="feedbackTitle" class="feedback-input" placeholder="Enter feedback title..." required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="feedbackMessage">Message:</label>
+                    <textarea id="feedbackMessage" class="feedback-textarea" placeholder="Enter your feedback message..." required></textarea>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelFeedbackBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Send Feedback</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Success Notification -->
     <div id="successNotification" class="success-notification">
         <div class="notification-content">
@@ -258,6 +273,9 @@
         window.limit = limit;
         window.doc = doc;
     </script>
+    
+    <!-- Mobile Optimization Script -->
+    <script src="mobile-optimization.js"></script>
     
     <!-- Admin Dashboard Script -->
     <script src="script.js"></script>
