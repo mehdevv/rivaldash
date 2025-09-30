@@ -1799,6 +1799,50 @@ class AdminDashboard {
         }
     }
     
+    // Notify the game about quest status updates for real-time updates
+    notifyGameOfQuestUpdate(questId, newStatus) {
+        try {
+            // Try to find the game window and notify it
+            if (window.opener && window.opener.game && window.opener.game.auth) {
+                // If admin dashboard was opened from the game
+                window.opener.dispatchEvent(new CustomEvent('questStatusUpdated', {
+                    detail: { questId, newStatus }
+                }));
+            } else {
+                // Try to find any open game window
+                const gameWindows = window.parent.frames || [];
+                for (let i = 0; i < gameWindows.length; i++) {
+                    try {
+                        if (gameWindows[i].game && gameWindows[i].game.auth) {
+                            gameWindows[i].dispatchEvent(new CustomEvent('questStatusUpdated', {
+                                detail: { questId, newStatus }
+                            }));
+                            break;
+                        }
+                    } catch (e) {
+                        // Cross-origin or window closed, continue
+                    }
+                }
+            }
+            
+            // Also try to use localStorage as a fallback for real-time updates
+            const questUpdate = {
+                questId: questId,
+                newStatus: newStatus,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('questStatusUpdate', JSON.stringify(questUpdate));
+            
+            // Trigger a custom event that the game can listen to
+            window.dispatchEvent(new CustomEvent('questStatusUpdated', {
+                detail: { questId, newStatus }
+            }));
+            
+        } catch (error) {
+            console.log('Could not notify game directly, using localStorage fallback');
+        }
+    }
+    
     async deleteQuest(questId) {
         if (!confirm('Are you sure you want to delete this quest? This action cannot be undone.')) {
             return;
@@ -1941,6 +1985,9 @@ class AdminDashboard {
                 experience: newExperience,
                 points: newPoints
             });
+            
+            // Notify the game about quest status update
+            this.notifyGameOfQuestUpdate(questId, 'completed');
             
         } catch (error) {
             console.error('❌ Error approving quest:', error);
