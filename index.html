@@ -20,6 +20,15 @@
             </div>
             <div class="header-right">
                 <span id="adminName" class="admin-name">Admin</span>
+                <div class="messages-button-container">
+                    <button id="messagesButton" class="icon-button messages-button" title="Received Messages">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                            <polyline points="22,6 12,13 2,6"></polyline>
+                        </svg>
+                    </button>
+                    <span id="messageCount" class="notification-badge" style="display: none;">0</span>
+                </div>
                 <button id="playersButton" class="icon-button players-button" title="View Players">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -152,10 +161,18 @@
                     <input type="number" id="questCoins" min="0" required>
                 </div>
                 <div class="form-group">
-                    <label for="questPlayer">Assign to Player:</label>
-                    <select id="questPlayer">
-                        <option value="">All Players</option>
-                    </select>
+                    <label for="questPlayers">Assign to Players:</label>
+                    <div class="player-checklist-container">
+                        <div class="checklist-header">
+                            <label class="checklist-all-option">
+                                <input type="checkbox" id="questSelectAll" class="select-all-checkbox">
+                                <span class="checklist-label">🎯 All Players</span>
+                            </label>
+                        </div>
+                        <div class="player-checklist" id="questPlayerChecklist">
+                            <!-- Player checkboxes will be populated here -->
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="questEndTime">End Time:</label>
@@ -174,6 +191,12 @@
                     <button type="submit" class="btn btn-primary">Save Quest</button>
                 </div>
             </form>
+            <div class="modal-loading-overlay" id="questLoadingOverlay">
+                <div class="modal-loading-content">
+                    <div class="modal-loading-spinner"></div>
+                    <div class="modal-loading-text">Saving Quest...</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -186,10 +209,18 @@
             </div>
             <form id="feedbackForm" class="modal-form">
                 <div class="form-group">
-                    <label for="feedbackPlayer">Select Player:</label>
-                    <select id="feedbackPlayer" class="feedback-select" required>
-                        <option value="">Choose a player...</option>
-                    </select>
+                    <label for="feedbackPlayers">Select Players:</label>
+                    <div class="player-checklist-container">
+                        <div class="checklist-header">
+                            <label class="checklist-all-option">
+                                <input type="checkbox" id="feedbackSelectAll" class="select-all-checkbox">
+                                <span class="checklist-label">👥 All Players</span>
+                            </label>
+                        </div>
+                        <div class="player-checklist" id="feedbackPlayerChecklist">
+                            <!-- Player checkboxes will be populated here -->
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="form-group">
@@ -198,7 +229,14 @@
                         <option value="">Select type...</option>
                         <option value="positive">✅ Positive Feedback</option>
                         <option value="negative">❌ Negative Feedback</option>
+                        <option value="natural">⚖️ Natural Feedback</option>
                     </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="feedbackXP">XP Reward (-5 to +5):</label>
+                    <input type="number" id="feedbackXP" class="feedback-input" min="-5" max="5" value="0" placeholder="0">
+                    <small class="form-help">Enter XP to add/subtract from player (-5 to +5)</small>
                 </div>
                 
                 <div class="form-group">
@@ -216,6 +254,27 @@
                     <button type="submit" class="btn btn-primary">Send Feedback</button>
                 </div>
             </form>
+            <div class="modal-loading-overlay" id="feedbackLoadingOverlay">
+                <div class="modal-loading-content">
+                    <div class="modal-loading-spinner"></div>
+                    <div class="modal-loading-text">Sending Feedback...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages Modal -->
+    <div id="messagesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Received Messages</h3>
+                <button class="close-btn" id="closeMessagesModal">&times;</button>
+            </div>
+            <div class="modal-form">
+                <div class="messages-list" id="messagesList">
+                    <!-- Messages will be populated here -->
+                </div>
+            </div>
         </div>
     </div>
 

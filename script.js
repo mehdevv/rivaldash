@@ -152,6 +152,12 @@ class AdminDashboard {
     }
     
     setupEventListeners() {
+        // Messages button
+        const messagesBtn = document.getElementById('messagesButton');
+        if (messagesBtn) {
+            messagesBtn.addEventListener('click', () => this.showMessagesModal());
+        }
+        
         // Players button
         const playersBtn = document.getElementById('playersButton');
         if (playersBtn) {
@@ -198,6 +204,11 @@ class AdminDashboard {
         const closeQuestModal = document.getElementById('closeQuestModal');
         if (closeQuestModal) {
             closeQuestModal.addEventListener('click', () => this.hideQuestModal());
+        }
+        
+        const closeMessagesModal = document.getElementById('closeMessagesModal');
+        if (closeMessagesModal) {
+            closeMessagesModal.addEventListener('click', () => this.hideMessagesModal());
         }
         
         // Cancel buttons
@@ -450,7 +461,14 @@ class AdminDashboard {
             await this.loadMissions();
             await this.loadDaygrades();
             
-            console.log('✅ Dashboard data loaded');
+            // Ensure all displays are rendered immediately
+            this.renderLeaderboard();
+            this.renderQuests();
+            this.renderFeedback();
+            this.renderMissions();
+            this.renderDaygrades();
+            
+            console.log('✅ Dashboard data loaded and displayed');
         } catch (error) {
             console.error('❌ Error loading data:', error);
             this.showError('Failed to load dashboard data');
@@ -492,6 +510,14 @@ class AdminDashboard {
                 }
             });
             
+            // Sort quests by creation date (newest first)
+            this.quests.sort((a, b) => {
+                const dateA = new Date(a.createdAt || 0);
+                const dateB = new Date(b.createdAt || 0);
+                return dateB - dateA; // Descending order (newest first)
+            });
+            
+            console.log('📋 Quests loaded and sorted by creation date (newest first)');
             this.renderQuests();
         } catch (error) {
             console.error('❌ Error loading quests:', error);
@@ -621,6 +647,26 @@ class AdminDashboard {
                             </div>
                             <div class="quest-subtitle">${quest.description}</div>
                             <div class="quest-subtitle">Assigned to: ${assignedPlayer}</div>
+                            <div class="quest-subtitle quest-created-date">Created: ${new Date(quest.createdAt).toLocaleString()}</div>
+                            ${isPlayerDone ? `
+                                <div class="quest-review-indicator">
+                                    <span class="review-badge">🔍 NEEDS REVIEW</span>
+                                    <span class="review-subtitle">Player has marked this quest as completed</span>
+                                </div>
+                            ` : ''}
+                            ${quest.playerJustification ? `
+                                <div class="quest-justification">
+                                    <div class="justification-header">
+                                        <span class="justification-label">📝 Player Justification:</span>
+                                        <span class="justification-status ${quest.playerJustification.status}">${quest.playerJustification.status === 'pending_review' ? 'Pending Review' : 'Reviewed'}</span>
+                                    </div>
+                                    <div class="justification-message">${quest.playerJustification.message}</div>
+                                    <div class="justification-meta">
+                                        <span class="justification-player">From: ${quest.playerJustification.playerName}</span>
+                                        <span class="justification-time">${new Date(quest.playerJustification.timestamp).toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            ` : ''}
                             <div class="quest-rewards">
                                 <span class="reward-badge reward-xp">+${quest.xpReward || 0} XP</span>
                                 <span class="reward-badge reward-coins">+${quest.coinsReward || 0} DZD</span>
@@ -630,18 +676,20 @@ class AdminDashboard {
                     <div class="quest-actions">
                         ${isCompleted ? `
                             <span class="quest-status-completed">✅ Completed & Rewarded</span>
+                        ` : isExpired ? `
+                            <span class="quest-status-expired">⏰ Quest Expired</span>
                         ` : isPlayerDone ? `
                             <button class="btn btn-warning" onclick="adminDashboard.approveQuest('${quest.id}')" title="Approve quest completion and award rewards">
                                 ✓ Approve & Reward
                             </button>
                         ` : `
-                            <button class="btn btn-success" onclick="adminDashboard.approveQuest('${quest.id}')" title="Approve quest completion and award rewards">
-                                ✓ Approve
-                            </button>
-                        `}
-                        <button class="btn btn-info" onclick="adminDashboard.duplicateQuest('${quest.id}')" title="Duplicate this quest">
-                            📋
+                        <button class="btn btn-success" onclick="adminDashboard.approveQuest('${quest.id}')" title="Approve quest completion and award rewards">
+                            ✓ Approve
                         </button>
+                        `}
+                           <button class="btn btn-info" onclick="adminDashboard.duplicateQuest('${quest.id}')" title="Duplicate this quest">
+                               📋
+                           </button>
                         <button class="btn btn-primary" onclick="adminDashboard.editQuest('${quest.id}')">Edit</button>
                         <button class="btn btn-danger" onclick="adminDashboard.deleteQuest('${quest.id}')">Delete</button>
                     </div>
@@ -662,30 +710,36 @@ class AdminDashboard {
             // Show feedback history (most recent first)
             const sortedFeedback = this.feedbackHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             
-            feedbackList.innerHTML = sortedFeedback.map(feedback => `
-                <div class="feedback-item">
-                    <div class="feedback-header">
-                        <div class="feedback-type ${feedback.type}">
-                            ${feedback.type === 'positive' ? '✅' : '❌'} ${feedback.type.toUpperCase()}
+            feedbackList.innerHTML = sortedFeedback.map((feedback, index) => {
+                // Check if this is a newly added feedback (within last 5 seconds)
+                const isNew = (Date.now() - new Date(feedback.timestamp).getTime()) < 5000;
+                
+                return `
+                    <div class="feedback-item ${isNew ? 'feedback-new' : ''}" data-feedback-id="${feedback.id}">
+                        <div class="feedback-header">
+                            <div class="feedback-type ${feedback.type}">
+                                ${feedback.type === 'positive' ? '✅' : feedback.type === 'negative' ? '❌' : '⚖️'} ${feedback.type.toUpperCase()}
+                            </div>
+                            <div class="feedback-time">${new Date(feedback.timestamp).toLocaleString()}</div>
                         </div>
-                        <div class="feedback-time">${new Date(feedback.timestamp).toLocaleString()}</div>
+                        <div class="feedback-content">
+                            <h4>${feedback.title}</h4>
+                            <p><strong>To:</strong> ${feedback.playerName}</p>
+                            <p><strong>Message:</strong> ${feedback.message}</p>
+                            <p><strong>Sent by:</strong> ${feedback.sentByName || 'Admin'}</p>
+                            ${feedback.xpReward !== 0 ? `<p><strong>XP Reward:</strong> <span class="xp-reward ${feedback.xpReward > 0 ? 'xp-positive' : 'xp-negative'}">${feedback.xpReward > 0 ? '+' : ''}${feedback.xpReward} XP</span></p>` : ''}
+                        </div>
+                        <div class="feedback-actions">
+                            <span class="feedback-status ${feedback.status}">
+                                ${feedback.status === 'read' ? '✅ Read by Player' : '⏳ Pending Player Read'}
+                            </span>
+                            <button class="btn btn-sm btn-danger" onclick="adminDashboard.deleteFeedback('${feedback.id}')">
+                                Delete
+                            </button>
+                        </div>
                     </div>
-                    <div class="feedback-content">
-                        <h4>${feedback.title}</h4>
-                        <p><strong>To:</strong> ${feedback.playerName}</p>
-                        <p><strong>Message:</strong> ${feedback.message}</p>
-                        <p><strong>Sent by:</strong> ${feedback.sentByName || 'Admin'}</p>
-                    </div>
-                    <div class="feedback-actions">
-                        <span class="feedback-status ${feedback.status}">
-                            ${feedback.status === 'read' ? '✅ Read by Player' : '⏳ Pending Player Read'}
-                        </span>
-                        <button class="btn btn-sm btn-danger" onclick="adminDashboard.deleteFeedback('${feedback.id}')">
-                            Delete
-                        </button>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
         
         
@@ -1014,7 +1068,7 @@ class AdminDashboard {
                 // Save to Firebase
                 await this.saveDaygradesToFirebase(today);
                 
-                // Update UI
+                // Update UI immediately
                 this.renderDaygrades();
                 
                 console.log(`✅ Grade saved for player ${playerId}: ${selectedGrade}/5`);
@@ -1050,7 +1104,7 @@ class AdminDashboard {
                     // Save to Firebase
                     await this.saveDaygradesToFirebase(today);
                     
-                    // Update UI
+                    // Update UI immediately
                     this.renderDaygrades();
                     
                     console.log(`✅ Grade cleared for player ${playerId}`);
@@ -1290,7 +1344,7 @@ class AdminDashboard {
                 // Remove from Firebase - both player and admin collections
                 await this.removeFeedbackFromFirebase(feedback);
                 
-                // Update UI
+                // Update UI immediately
                 this.renderFeedback();
                 
                 console.log(`✅ Feedback deleted: ${feedbackId}`);
@@ -1435,13 +1489,81 @@ class AdminDashboard {
         }
     
     updateQuestPlayerSelect() {
-        const questPlayerSelect = document.getElementById('questPlayer');
-        if (!questPlayerSelect) return;
+        this.populatePlayerChecklist('questPlayerChecklist', 'questSelectAll');
+    }
+    
+    populatePlayerChecklist(checklistId, selectAllId) {
+        const checklist = document.getElementById(checklistId);
+        const selectAllCheckbox = document.getElementById(selectAllId);
         
-        questPlayerSelect.innerHTML = '<option value="">All Players</option>' +
-            this.players.map(player => 
-                `<option value="${player.id}">${player.name || player.email}</option>`
-            ).join('');
+        if (!checklist || !selectAllCheckbox) return;
+        
+        // Clear existing content
+        checklist.innerHTML = '';
+        
+        // Add individual player checkboxes
+        this.players.forEach(player => {
+            const playerItem = document.createElement('div');
+            playerItem.className = 'player-checkbox-item';
+            playerItem.innerHTML = `
+                <input type="checkbox" id="${checklistId}_${player.id}" value="${player.id}" class="player-checkbox">
+                <div class="player-checkbox-info">
+                    <div class="player-checkbox-avatar">${player.name ? player.name.charAt(0).toUpperCase() : '?'}</div>
+                    <span class="player-checkbox-name">${player.name || player.email}</span>
+                    <span class="player-checkbox-level">Lv.${player.level || 1}</span>
+                </div>
+            `;
+            checklist.appendChild(playerItem);
+        });
+        
+        // Setup event listeners
+        this.setupChecklistEventListeners(checklistId, selectAllId);
+    }
+    
+    setupChecklistEventListeners(checklistId, selectAllId) {
+        const checklist = document.getElementById(checklistId);
+        const selectAllCheckbox = document.getElementById(selectAllId);
+        const playerCheckboxes = checklist.querySelectorAll('.player-checkbox');
+        
+        // Select All functionality
+        selectAllCheckbox.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            playerCheckboxes.forEach(checkbox => {
+                checkbox.checked = isChecked;
+            });
+        });
+        
+        // Individual checkbox functionality
+        playerCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const checkedCount = Array.from(playerCheckboxes).filter(cb => cb.checked).length;
+                const totalCount = playerCheckboxes.length;
+                
+                // Update select all checkbox state
+                if (checkedCount === 0) {
+                    selectAllCheckbox.checked = false;
+                    selectAllCheckbox.indeterminate = false;
+                } else if (checkedCount === totalCount) {
+                    selectAllCheckbox.checked = true;
+                    selectAllCheckbox.indeterminate = false;
+                } else {
+                    selectAllCheckbox.checked = false;
+                    selectAllCheckbox.indeterminate = true;
+                }
+            });
+        });
+        
+        // Click on player item to toggle checkbox
+        checklist.addEventListener('click', (e) => {
+            const playerItem = e.target.closest('.player-checkbox-item');
+            if (playerItem && !e.target.matches('input[type="checkbox"]')) {
+                const checkbox = playerItem.querySelector('.player-checkbox');
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            }
+        });
     }
     
     
@@ -1461,7 +1583,8 @@ class AdminDashboard {
                 document.getElementById('questDescription').value = quest.description || '';
                 document.getElementById('questXP').value = quest.xpReward || 0;
                 document.getElementById('questCoins').value = quest.coinsReward || 0;
-                document.getElementById('questPlayer').value = quest.assignedPlayer || '';
+                // Set the selected player in the checklist
+                this.setSelectedPlayerInChecklist('questPlayerChecklist', quest.assignedPlayer);
                 document.getElementById('questEndTime').value = quest.endTime || '';
                 document.getElementById('questVerificationName').value = quest.verificationName || '';
                 document.getElementById('questVerificationLink').value = quest.verificationLink || '';
@@ -1477,6 +1600,9 @@ class AdminDashboard {
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
             document.getElementById('questEndTime').value = tomorrow.toISOString().slice(0, 16);
+            
+            // Clear the checklist for new quest
+            this.clearChecklist('questPlayerChecklist', 'questSelectAll');
         }
         
         modal.classList.add('show');
@@ -1491,6 +1617,150 @@ class AdminDashboard {
         window.location.href = 'players.html';
     }
     
+    showMessagesModal() {
+        const modal = document.getElementById('messagesModal');
+        if (modal) {
+            modal.classList.add('show');
+            this.loadMessages();
+        }
+    }
+    
+    hideMessagesModal() {
+        const modal = document.getElementById('messagesModal');
+        if (modal) {
+            modal.classList.remove('show');
+        }
+    }
+    
+    async loadMessages() {
+        try {
+            if (!window.db) {
+                console.error('❌ Firebase not initialized');
+                this.renderMessages([]);
+                return;
+            }
+            
+            // Load messages from Firebase
+            const messagesRef = window.collection(window.db, 'admin_messages');
+            const messagesSnapshot = await window.getDocs(messagesRef);
+            
+            const messages = [];
+            messagesSnapshot.forEach(doc => {
+                const messageData = doc.data();
+                messages.push({
+                    id: doc.id,
+                    ...messageData
+                });
+            });
+            
+            // Sort by timestamp (newest first)
+            messages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            
+            console.log(`📧 Loaded ${messages.length} messages from Firebase`);
+            this.renderMessages(messages);
+            
+        } catch (error) {
+            console.error('❌ Error loading messages from Firebase:', error);
+            this.renderMessages([]);
+        }
+    }
+    
+    renderMessages(messages) {
+        const messagesList = document.getElementById('messagesList');
+        if (!messagesList) return;
+        
+        if (messages.length === 0) {
+            messagesList.innerHTML = '<div class="empty-state"><h4>No messages</h4><p>No justification messages received yet</p></div>';
+            return;
+        }
+        
+        messagesList.innerHTML = messages.map(message => {
+            const timeAgo = this.formatTimeAgo(new Date(message.timestamp));
+            const isUnread = message.status === 'unread';
+            
+            return `
+                <div class="message-item ${isUnread ? 'unread' : ''}">
+                    <div class="message-header">
+                        <div>
+                            <div class="message-player">From: ${message.playerName}</div>
+                            <div class="message-quest">Quest: ${message.questName}</div>
+                        </div>
+                        <div class="message-time">${timeAgo}</div>
+                    </div>
+                    <div class="message-content">${message.message}</div>
+                    <div class="message-actions">
+                        <span class="message-status ${message.status}">${message.status === 'unread' ? 'Unread' : 'Read'}</span>
+                        ${isUnread ? `<button class="btn btn-primary" onclick="adminDashboard.markAsRead('${message.id}')">Mark as Read</button>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        // Update notification badge
+        this.updateMessageCount(messages.filter(m => m.status === 'unread').length);
+    }
+    
+    async markAsRead(messageId) {
+        try {
+            // Update Firebase
+            if (window.db) {
+                const messageRef = window.doc(window.db, 'admin_messages', messageId);
+                await window.updateDoc(messageRef, {
+                    status: 'read',
+                    readAt: new Date().toISOString()
+                });
+            }
+            
+            // Update UI
+            const messageItem = document.querySelector(`[onclick*="${messageId}"]`).closest('.message-item');
+            if (messageItem) {
+                messageItem.classList.remove('unread');
+                const statusElement = messageItem.querySelector('.message-status');
+                statusElement.textContent = 'Read';
+                statusElement.className = 'message-status read';
+                
+                // Remove the "Mark as Read" button
+                const markAsReadBtn = messageItem.querySelector('button[onclick*="markAsRead"]');
+                if (markAsReadBtn) {
+                    markAsReadBtn.remove();
+                }
+            }
+            
+            // Update notification count
+            const unreadCount = document.querySelectorAll('.message-item.unread').length;
+            this.updateMessageCount(unreadCount);
+            
+            console.log(`✅ Message ${messageId} marked as read`);
+            
+        } catch (error) {
+            console.error('❌ Error marking message as read:', error);
+            this.showError('Failed to mark message as read');
+        }
+    }
+    
+    
+    updateMessageCount(count) {
+        const badge = document.getElementById('messageCount');
+        if (badge) {
+            if (count > 0) {
+                badge.textContent = count;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    }
+    
+    formatTimeAgo(date) {
+        const now = new Date();
+        const diffInSeconds = Math.floor((now - date) / 1000);
+        
+        if (diffInSeconds < 60) return 'Just now';
+        if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+        return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    }
+    
     // Placeholder methods for new sections
         showFeedbackModal() {
             console.log('📝 Opening feedback modal...');
@@ -1501,8 +1771,11 @@ class AdminDashboard {
             const feedbackModal = document.getElementById('feedbackModal');
             if (!feedbackModal) return;
             
-            // Populate player dropdown
+            // Populate player checklist
             this.populateFeedbackPlayerSelect();
+            
+            // Clear the checklist for new feedback
+            this.clearChecklist('feedbackPlayerChecklist', 'feedbackSelectAll');
             
             // Show modal
             feedbackModal.style.display = 'flex';
@@ -1512,19 +1785,7 @@ class AdminDashboard {
         }
         
         populateFeedbackPlayerSelect() {
-            const playerSelect = document.getElementById('feedbackPlayer');
-            if (!playerSelect) return;
-            
-            // Clear existing options except first one
-            playerSelect.innerHTML = '<option value="">Choose a player...</option>';
-            
-            // Add players
-            this.players.forEach(player => {
-                const option = document.createElement('option');
-                option.value = player.id;
-                option.textContent = player.name;
-                playerSelect.appendChild(option);
-            });
+            this.populatePlayerChecklist('feedbackPlayerChecklist', 'feedbackSelectAll');
         }
         
         setupFeedbackModalEventListeners() {
@@ -1558,40 +1819,69 @@ class AdminDashboard {
         
         async handleFeedbackSubmit() {
             try {
-                const playerId = document.getElementById('feedbackPlayer').value;
+                const selectedPlayers = this.getSelectedPlayers('feedbackPlayerChecklist');
                 const feedbackType = document.getElementById('feedbackType').value;
+                const feedbackXP = parseInt(document.getElementById('feedbackXP').value) || 0;
                 const title = document.getElementById('feedbackTitle').value.trim();
                 const message = document.getElementById('feedbackMessage').value.trim();
                 
+                // Show loading overlay and disable submit button
+                this.showModalLoading('feedbackModal', 'feedbackLoadingOverlay');
+                this.disableSubmitButton('feedbackForm');
+                
                 // Validation
-                if (!playerId) {
-                    this.showError('Please select a player');
+                if (selectedPlayers.length === 0) {
+                    this.showError('Please select at least one player');
+                    this.hideModalLoading('feedbackModal', 'feedbackLoadingOverlay');
+                    this.enableSubmitButton('feedbackForm');
                     return;
                 }
                 
                 if (!feedbackType) {
                     this.showError('Please select feedback type');
+                    this.hideModalLoading('feedbackModal', 'feedbackLoadingOverlay');
+                    this.enableSubmitButton('feedbackForm');
                     return;
                 }
                 
                 if (!title) {
                     this.showError('Please enter a title');
+                    this.hideModalLoading('feedbackModal', 'feedbackLoadingOverlay');
+                    this.enableSubmitButton('feedbackForm');
                     return;
                 }
                 
                 if (!message) {
                     this.showError('Please enter a message');
+                    this.hideModalLoading('feedbackModal', 'feedbackLoadingOverlay');
+                    this.enableSubmitButton('feedbackForm');
                     return;
                 }
                 
-                // Create feedback object
+                // Validate XP range
+                if (feedbackXP < -5 || feedbackXP > 5) {
+                    this.showError('XP reward must be between -5 and +5');
+                    this.hideModalLoading('feedbackModal', 'feedbackLoadingOverlay');
+                    this.enableSubmitButton('feedbackForm');
+                    return;
+                }
+                
+                // Create feedback for each selected player
+                let sentCount = 0;
+                const playerNames = [];
+                
+                for (const playerId of selectedPlayers) {
+                    const player = this.players.find(p => p.id === playerId);
+                    if (!player) continue;
+                    
                 const feedback = {
-                    id: Date.now().toString(),
+                        id: `${Date.now()}_${playerId}`,
                     playerId: playerId,
-                    playerName: this.players.find(p => p.id === playerId)?.name || 'Unknown Player',
+                        playerName: player.name || 'Unknown Player',
                     type: feedbackType,
                     title: title,
                     message: message,
+                    xpReward: feedbackXP,
                     timestamp: new Date().toISOString(),
                     sentBy: this.currentUser.uid,
                     sentByName: this.currentUser.displayName || 'Admin',
@@ -1602,18 +1892,63 @@ class AdminDashboard {
                 // Save to Firebase
                 await this.saveFeedbackToFirebase(feedback);
                 
+                // Apply XP reward to player if not zero
+                if (feedbackXP !== 0) {
+                    await this.applyXPToPlayer(playerId, feedbackXP);
+                }
+                
+                // Add to local feedback history immediately
+                this.feedbackHistory.push(feedback);
+                    
+                    sentCount++;
+                    playerNames.push(player.name || 'Unknown Player');
+                }
+                
+                // Always update UI immediately (regardless of current tab)
+                this.renderFeedback();
+                
+                // If not on feedback tab, switch to it to show the new feedback
+                if (this.currentTab !== 'feedback') {
+                    this.switchTab('feedback');
+                }
+                
+                // Remove the "new" highlight after 5 seconds
+                setTimeout(() => {
+                    this.renderFeedback();
+                }, 5000);
+                
                 // Hide modal
                 this.hideFeedbackModal();
                 
                 // Clear form
                 document.getElementById('feedbackForm').reset();
+                document.getElementById('feedbackXP').value = '0';
                 
-                console.log(`✅ Feedback sent to player ${feedback.playerName}`);
-                this.showSuccess(`Feedback sent to ${feedback.playerName}! They will see it in their game.`);
+                console.log(`✅ Feedback sent to ${sentCount} player(s)`);
+                
+                // Create success message with XP info
+                let successMessage;
+                if (sentCount === 1) {
+                    successMessage = `Feedback sent to ${playerNames[0]}! They will see it in their game.`;
+                if (feedbackXP !== 0) {
+                        successMessage += `\n\n${feedbackXP > 0 ? '➕' : '➖'} ${Math.abs(feedbackXP)} XP ${feedbackXP > 0 ? 'added to' : 'removed from'} ${playerNames[0]}.`;
+                    }
+                } else {
+                    successMessage = `Feedback sent to ${sentCount} players! They will see it in their game.`;
+                    if (feedbackXP !== 0) {
+                        successMessage += `\n\n${feedbackXP > 0 ? '➕' : '➖'} ${Math.abs(feedbackXP)} XP ${feedbackXP > 0 ? 'added to' : 'removed from'} each player.`;
+                    }
+                }
+                
+                this.showSuccess(successMessage);
                 
         } catch (error) {
                 console.error('❌ Error sending feedback:', error);
                 this.showError('Failed to send feedback');
+            } finally {
+                // Hide loading overlay and re-enable submit button
+                this.hideModalLoading('feedbackModal', 'feedbackLoadingOverlay');
+                this.enableSubmitButton('feedbackForm');
             }
         }
     
@@ -1665,17 +2000,100 @@ class AdminDashboard {
         }
     }
     
+        // Method to force refresh all displays
+        refreshAllDisplays() {
+            this.renderLeaderboard();
+            this.renderQuests();
+            this.renderFeedback();
+            this.renderMissions();
+            this.renderDaygrades();
+        }
+        
+        // Method to apply XP to a player
+        async applyXPToPlayer(playerId, xpAmount) {
+            try {
+                const player = this.players.find(p => p.id === playerId);
+                if (!player) {
+                    console.error('❌ Player not found:', playerId);
+                    return false;
+                }
+                
+                const currentExperience = player.experience || 0;
+                const currentLevel = player.level || 1;
+                let newExperience = currentExperience + xpAmount;
+                let newLevel = currentLevel;
+                
+                // Handle negative XP (can't go below 0)
+                if (newExperience < 0) {
+                    newExperience = 0;
+                }
+                
+                // Check if player leveled up or down
+                while (newLevel < 10 && newExperience >= (newLevel * 100)) {
+                    newExperience -= (newLevel * 100);
+                    newLevel++;
+                }
+                
+                // Handle level down (if XP goes negative and affects level)
+                while (newLevel > 1 && newExperience < 0) {
+                    newLevel--;
+                    newExperience += (newLevel * 100);
+                }
+                
+                // Cap at level 10
+                if (newLevel > 10) {
+                    newLevel = 10;
+                    newExperience = 0;
+                }
+                
+                // Update player in Firebase
+                await window.updateDoc(window.doc(window.db, 'users', playerId), {
+                    experience: newExperience,
+                    level: newLevel
+                });
+                
+                // Update local player data
+                player.experience = newExperience;
+                player.level = newLevel;
+                
+                console.log(`✅ Applied ${xpAmount} XP to ${player.name}. New level: ${newLevel}, XP: ${newExperience}`);
+                
+                // Refresh leaderboard to show updated stats
+                this.renderLeaderboard();
+                
+                return true;
+                
+            } catch (error) {
+                console.error('❌ Error applying XP to player:', error);
+                return false;
+            }
+        }
+    
     
     async handleQuestSubmit(e) {
         e.preventDefault();
         
-        const formData = {
+        const questId = document.getElementById('questId').value;
+        const selectedPlayers = this.getSelectedPlayers('questPlayerChecklist');
+        
+        // Show loading overlay and disable submit button
+        this.showModalLoading('questModal', 'questLoadingOverlay');
+        this.disableSubmitButton('questForm');
+        
+        // Validation
+        if (!questId && selectedPlayers.length === 0) {
+            this.showError('Please select at least one player for the quest');
+            this.hideModalLoading('questModal', 'questLoadingOverlay');
+            this.enableSubmitButton('questForm');
+            return;
+        }
+        
+        const baseFormData = {
             logo: document.getElementById('questLogo').value || '📍',
             name: document.getElementById('questName').value,
             description: document.getElementById('questDescription').value,
             xpReward: parseInt(document.getElementById('questXP').value) || 0,
             coinsReward: parseInt(document.getElementById('questCoins').value) || 0,
-            assignedPlayer: document.getElementById('questPlayer').value || null,
             endTime: document.getElementById('questEndTime').value,
             verificationName: document.getElementById('questVerificationName').value,
             verificationLink: document.getElementById('questVerificationLink').value,
@@ -1683,28 +2101,135 @@ class AdminDashboard {
             createdAt: new Date().toISOString()
         };
         
-        const questId = document.getElementById('questId').value;
-        
         try {
             if (questId) {
-                // Update existing quest
+                // Update existing quest (single quest)
+                const quest = this.quests.find(q => q.id === questId);
+                if (quest) {
                 await window.updateDoc(window.doc(window.db, 'quests', questId), {
-                    ...formData,
+                        ...baseFormData,
+                        assignedPlayer: selectedPlayers.length > 0 ? selectedPlayers[0] : quest.assignedPlayer,
                     updatedAt: new Date().toISOString()
                 });
                 console.log('✅ Quest updated');
+                }
             } else {
-                // Create new quest
+                // Create new quest(s) for each selected player
+                let createdCount = 0;
+                
+                for (const playerId of selectedPlayers) {
+                    const questData = {
+                        ...baseFormData,
+                        assignedPlayer: playerId,
+                        createdAt: new Date().toISOString()
+                    };
+                    
                 const newQuestRef = window.doc(window.collection(window.db, 'quests'));
-                await window.setDoc(newQuestRef, formData);
-                console.log('✅ Quest created');
+                    await window.setDoc(newQuestRef, questData);
+                    createdCount++;
+                }
+                
+                console.log(`✅ ${createdCount} quest(s) created for ${selectedPlayers.length} player(s)`);
+                
+                if (createdCount > 1) {
+                    this.showSuccess(`Successfully created ${createdCount} quests for ${selectedPlayers.length} players!`);
+                }
             }
             
             this.hideQuestModal();
             await this.loadQuests();
+            
+            // Force refresh the quests display immediately
+            this.renderQuests();
         } catch (error) {
             console.error('❌ Error saving quest:', error);
             this.showError('Failed to save quest');
+        } finally {
+            // Hide loading overlay and re-enable submit button
+            this.hideModalLoading('questModal', 'questLoadingOverlay');
+            this.enableSubmitButton('questForm');
+        }
+    }
+    
+    getSelectedPlayers(checklistId) {
+        const checklist = document.getElementById(checklistId);
+        if (!checklist) return [];
+        
+        const checkedBoxes = checklist.querySelectorAll('.player-checkbox:checked');
+        return Array.from(checkedBoxes).map(checkbox => checkbox.value);
+    }
+    
+    setSelectedPlayerInChecklist(checklistId, playerId) {
+        const checklist = document.getElementById(checklistId);
+        if (!checklist || !playerId) return;
+        
+        // Clear all selections first
+        this.clearChecklist(checklistId, checklistId.replace('Checklist', 'SelectAll'));
+        
+        // Select the specific player
+        const checkbox = checklist.querySelector(`input[value="${playerId}"]`);
+        if (checkbox) {
+            checkbox.checked = true;
+            checkbox.dispatchEvent(new Event('change'));
+        }
+    }
+    
+    clearChecklist(checklistId, selectAllId) {
+        const checklist = document.getElementById(checklistId);
+        const selectAllCheckbox = document.getElementById(selectAllId);
+        
+        if (checklist) {
+            const checkboxes = checklist.querySelectorAll('.player-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        }
+        
+        if (selectAllCheckbox) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        }
+    }
+    
+    showModalLoading(modalId, overlayId) {
+        const overlay = document.getElementById(overlayId);
+        
+        if (overlay) {
+            overlay.classList.add('show');
+        }
+    }
+    
+    hideModalLoading(modalId, overlayId) {
+        const overlay = document.getElementById(overlayId);
+        
+        if (overlay) {
+            overlay.classList.remove('show');
+        }
+    }
+    
+    disableSubmitButton(formId) {
+        const form = document.getElementById(formId);
+        if (form) {
+            const submitButton = form.querySelector('button[type="submit"]');
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = submitButton.textContent.includes('Quest') ? 'Saving...' : 'Sending...';
+                submitButton.style.opacity = '0.6';
+                submitButton.style.cursor = 'not-allowed';
+            }
+        }
+    }
+    
+    enableSubmitButton(formId) {
+        const form = document.getElementById(formId);
+        if (form) {
+            const submitButton = form.querySelector('button[type="submit"]');
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = submitButton.textContent.includes('Saving') ? 'Save Quest' : 'Send Feedback';
+                submitButton.style.opacity = '1';
+                submitButton.style.cursor = 'pointer';
+            }
         }
     }
     
@@ -1745,6 +2270,9 @@ class AdminDashboard {
             
             // Refresh quests list
             await this.loadQuests();
+            
+            // Force refresh the quests display immediately
+            this.renderQuests();
             
         } catch (error) {
             console.error('❌ Error duplicating quest:', error);
@@ -1852,6 +2380,9 @@ class AdminDashboard {
             await window.deleteDoc(window.doc(window.db, 'quests', questId));
             console.log('✅ Quest deleted');
             await this.loadQuests();
+            
+            // Force refresh the quests display immediately
+            this.renderQuests();
         } catch (error) {
             console.error('❌ Error deleting quest:', error);
             this.showError('Failed to delete quest');
@@ -1979,6 +2510,10 @@ class AdminDashboard {
             await this.loadLeaderboard();
             await this.loadQuests();
             
+            // Force refresh the displays immediately
+            this.renderLeaderboard();
+            this.renderQuests();
+            
             // Notify the game about the stat update for real-time updates
             this.notifyGameOfStatUpdate(player.id, {
                 level: newLevel,
@@ -2038,6 +2573,15 @@ document.addEventListener('DOMContentLoaded', () => {
     window.refreshLeaderboard = () => {
         if (window.adminDashboard) {
             return window.adminDashboard.refreshLeaderboard();
+        } else {
+            console.log("❌ Admin dashboard not initialized yet");
+        }
+    };
+    
+    // Make refresh all displays available globally for debugging
+    window.refreshAllDisplays = () => {
+        if (window.adminDashboard) {
+            return window.adminDashboard.refreshAllDisplays();
         } else {
             console.log("❌ Admin dashboard not initialized yet");
         }
