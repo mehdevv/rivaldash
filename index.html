@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RivalDash</title>
+    <link rel="icon" type="image/png" href="adminfav.png">
+    <link rel="shortcut icon" type="image/png" href="adminfav.png">
+    <link rel="apple-touch-icon" href="adminfav.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Dashboard -->
+    <div id="dashboard" class="dashboard">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-left">
+                <img src="adminfav.png" alt="RivalDash" class="dashboard-logo">
+                <h1>RivalDash</h1>
+            </div>
+            <div class="header-right">
+                <span id="adminName" class="admin-name">Admin</span>
+                <div class="messages-button-container">
+                    <button id="messagesButton" class="icon-button messages-button" title="Received Messages">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                            <polyline points="22,6 12,13 2,6"></polyline>
+                        </svg>
+                    </button>
+                    <span id="messageCount" class="notification-badge" style="display: none;">0</span>
+                </div>
+                <button id="playersButton" class="icon-button players-button" title="View Players">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                </button>
+                <button id="refreshButton" class="icon-button refresh-button" title="Refresh Data">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                    </svg>
+                </button>
+                <button id="logoutButton" class="icon-button logout-button" title="Logout">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16,17 21,12 16,7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="dashboard-content">
+            <!-- Leaderboard Section -->
+            <section class="leaderboard-section">
+                <h2>Top Players</h2>
+                <div class="leaderboard">
+                    <div id="leaderboardList" class="leaderboard-list">
+                        <!-- Leaderboard items will be populated here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quests Management Section -->
+            <section class="quests-section">
+                    <div class="section-header">
+                    <h2>Quests Management</h2>
+                    <button id="addQuestBtn" class="add-button">+ Add Quest</button>
+                    </div>
+                    <div class="quests-list" id="questsList">
+                        <!-- Quests will be populated here -->
+                </div>
+            </section>
+
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+                <button id="daygradesTab" class="tab-button active" data-tab="daygrades">
+                    📊 Daygrades
+                </button>
+                <button id="feedbackTab" class="tab-button" data-tab="feedback">
+                    📝 Feedback
+                </button>
+                <button id="missionsTab" class="tab-button" data-tab="missions">
+                    🎯 Missions
+                </button>
+            </div>
+            
+            <!-- Tab Content -->
+            <div class="tab-content">
+                <!-- Daygrades Tab -->
+                <div id="daygradesContent" class="tab-panel active">
+                    <div class="daygrades-list" id="daygradesList">
+                        <!-- Daygrades will be populated here -->
+                    </div>
+                </div>
+                
+                <!-- Feedback Tab -->
+                <div id="feedbackContent" class="tab-panel">
+                    <div class="tab-panel-header">
+                        <h3>Feedback Management</h3>
+                        <button id="addFeedbackBtn" class="add-button">+ Add Feedback</button>
+                </div>
+                    <div class="feedback-list" id="feedbackList">
+                        <!-- Feedback will be populated here -->
+                </div>
+                </div>
+                
+                <!-- Missions Tab -->
+                <div id="missionsContent" class="tab-panel">
+                    <div class="mission-list" id="missionList">
+                        <!-- Missions will be populated here -->
+                    </div>
+                </div>
+        </div>
+        </main>
+    </div>
+
+
+    <!-- Quest Edit Modal -->
+    <div id="questModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="questModalTitle">Add Quest</h3>
+                <button class="close-btn" id="closeQuestModal">&times;</button>
+            </div>
+            <form id="questForm" class="modal-form">
+                <input type="hidden" id="questId">
+                <div class="form-group">
+                    <label for="questLogo">Quest Logo (Emoji):</label>
+                    <div class="emoji-input-group">
+                        <input type="text" id="questLogo" placeholder="📍" maxlength="2" required>
+                        <div class="emoji-suggestions">
+                            <span class="emoji-option" data-emoji="📍">📍</span>
+                            <span class="emoji-option" data-emoji="⚔️">⚔️</span>
+                            <span class="emoji-option" data-emoji="🏆">🏆</span>
+                            <span class="emoji-option" data-emoji="💰">💰</span>
+                            <span class="emoji-option" data-emoji="🎯">🎯</span>
+                            <span class="emoji-option" data-emoji="🔍">🔍</span>
+                            <span class="emoji-option" data-emoji="📝">📝</span>
+                            <span class="emoji-option" data-emoji="🎮">🎮</span>
+                            <span class="emoji-option" data-emoji="⭐">⭐</span>
+                            <span class="emoji-option" data-emoji="🔥">🔥</span>
+                            <span class="emoji-option" data-emoji="💎">💎</span>
+                            <span class="emoji-option" data-emoji="🚀">🚀</span>
+                            <span class="emoji-option" data-emoji="🎪">🎪</span>
+                            <span class="emoji-option" data-emoji="🏰">🏰</span>
+                            <span class="emoji-option" data-emoji="⚡">⚡</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="questName">Quest Name:</label>
+                    <input type="text" id="questName" required>
+                </div>
+                <div class="form-group">
+                    <label for="questDescription">Description:</label>
+                    <textarea id="questDescription" rows="3" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="questTask">Task:</label>
+                    <select id="questTask" required>
+                        <option value="">Select a task...</option>
+                        <option value="diploma">Diploma</option>
+                        <option value="certificate">Certificate</option>
+                        <option value="others">Others</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="questPlayers">Assign to Players:</label>
+                    <div class="player-checklist-container">
+                        <div class="checklist-header">
+                            <label class="checklist-all-option">
+                                <input type="checkbox" id="questSelectAll" class="select-all-checkbox">
+                                <span class="checklist-label">🎯 All Players</span>
+                            </label>
+                        </div>
+                        <div class="player-checklist" id="questPlayerChecklist">
+                            <!-- Player checkboxes will be populated here -->
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="questEndTime">End Time:</label>
+                    <input type="datetime-local" id="questEndTime" required>
+                </div>
+                <div class="form-group">
+                    <label for="questVerificationName">Verification Name:</label>
+                    <input type="text" id="questVerificationName" placeholder="e.g., Screenshot, Video, etc.">
+                </div>
+                <div class="form-group">
+                    <label for="questVerificationLink">Verification Link:</label>
+                    <input type="url" id="questVerificationLink" placeholder="https://example.com">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelQuestBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Quest</button>
+                </div>
+            </form>
+            <div class="modal-loading-overlay" id="questLoadingOverlay">
+                <div class="modal-loading-content">
+                    <div class="modal-loading-spinner"></div>
+                    <div class="modal-loading-text">Saving Quest...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedbackModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Send Feedback to Player</h3>
+                <button class="close-btn" id="closeFeedbackModal">&times;</button>
+            </div>
+            <form id="feedbackForm" class="modal-form">
+                <div class="form-group">
+                    <label for="feedbackPlayers">Select Players:</label>
+                    <div class="player-checklist-container">
+                        <div class="checklist-header">
+                            <label class="checklist-all-option">
+                                <input type="checkbox" id="feedbackSelectAll" class="select-all-checkbox">
+                                <span class="checklist-label">👥 All Players</span>
+                            </label>
+                        </div>
+                        <div class="player-checklist" id="feedbackPlayerChecklist">
+                            <!-- Player checkboxes will be populated here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="feedbackType">Feedback Type:</label>
+                    <select id="feedbackType" class="feedback-select" required>
+                        <option value="">Select type...</option>
+                        <option value="positive">✅ Positive Feedback</option>
+                        <option value="negative">❌ Negative Feedback</option>
+                        <option value="natural">⚖️ Natural Feedback</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="feedbackXP">XP Reward (-5 to +5):</label>
+                    <select id="feedbackXP" class="feedback-select" required>
+                        <option value="-5">-5 XP</option>
+                        <option value="-4">-4 XP</option>
+                        <option value="-3">-3 XP</option>
+                        <option value="-2">-2 XP</option>
+                        <option value="-1">-1 XP</option>
+                        <option value="0" selected>0 XP</option>
+                        <option value="1">+1 XP</option>
+                        <option value="2">+2 XP</option>
+                        <option value="3">+3 XP</option>
+                        <option value="4">+4 XP</option>
+                        <option value="5">+5 XP</option>
+                    </select>
+                    <small class="form-help">Select XP to add/subtract from player (-5 to +5)</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="feedbackTitle">Title:</label>
+                    <input type="text" id="feedbackTitle" class="feedback-input" placeholder="Enter feedback title..." required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="feedbackMessage">Message:</label>
+                    <textarea id="feedbackMessage" class="feedback-textarea" placeholder="Enter your feedback message..." required></textarea>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelFeedbackBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Send Feedback</button>
+                </div>
+            </form>
+            <div class="modal-loading-overlay" id="feedbackLoadingOverlay">
+                <div class="modal-loading-content">
+                    <div class="modal-loading-spinner"></div>
+                    <div class="modal-loading-text">Sending Feedback...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages Modal -->
+    <div id="messagesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Received Messages</h3>
+                <button class="close-btn" id="closeMessagesModal">&times;</button>
+            </div>
+            <div class="modal-form">
+                <div class="messages-list" id="messagesList">
+                    <!-- Messages will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Notification -->
+    <div id="successNotification" class="success-notification">
+        <div class="notification-content">
+            <h4>Player Created Successfully!</h4>
+            <div class="credentials">
+                <p><strong>Email:</strong> <span id="createdEmail"></span></p>
+                <p><strong>Password:</strong> <span id="createdPassword"></span></p>
+            </div>
+            <p class="note">Share these credentials with the player.</p>
+            <button id="closeNotification" class="btn btn-primary">OK</button>
+        </div>
+    </div>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        // Your Firebase config
+        const firebaseConfig = {
+            apiKey: "AIzaSyAwSj5ryXjJ8prlqoP6d0V_3jgmaK9lgP8",
+            authDomain: "rivalation-e2025.firebaseapp.com",
+            projectId: "rivalation-e2025",
+            storageBucket: "rivalation-e2025.firebasestorage.app",
+            messagingSenderId: "393944634509",
+            appId: "1:393944634509:web:18c0fde880466d2b537ec4",
+            measurementId: "G-P39N43F6DM"
+        };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // Make Firebase services available globally
+        window.auth = auth;
+        window.db = db;
+        window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.signOut = signOut;
+        window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+        window.getDoc = getDoc;
+        window.setDoc = setDoc;
+        window.updateDoc = updateDoc;
+        window.deleteDoc = deleteDoc;
+        window.collection = collection;
+        window.getDocs = getDocs;
+        window.query = query;
+        window.orderBy = orderBy;
+        window.limit = limit;
+        window.doc = doc;
+    </script>
+    
+    <!-- Mobile Optimization Script -->
+    <script src="mobile-optimization.js"></script>
+    
+    <!-- Admin Dashboard Script -->
+    <script src="script.js"></script>
+</body>
+</html>

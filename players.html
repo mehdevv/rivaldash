@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Players Management - RivalDash</title>
+    <link rel="icon" type="image/png" href="adminfav.png">
+    <link rel="shortcut icon" type="image/png" href="adminfav.png">
+    <link rel="apple-touch-icon" href="adminfav.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Players Management Page -->
+    <div class="players-page">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-left">
+                <img src="adminfav.png" alt="RivalDash" class="dashboard-logo">
+                <h1>Players Management</h1>
+            </div>
+            <div class="header-right">
+                <span id="adminName" class="admin-name">Admin</span>
+                <button id="backToDashboard" class="icon-button back-button" title="Back to Dashboard">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9,22 9,12 15,12 15,22"></polyline>
+                    </svg>
+                </button>
+                <button id="logoutButton" class="icon-button logout-button" title="Logout">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16,17 21,12 16,7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="players-content">
+            <!-- Players Section -->
+            <section class="players-section">
+                <div class="section-header">
+                    <h2>All Players</h2>
+                    <button id="addPlayerBtn" class="add-button">+ Add Player</button>
+                </div>
+                <div class="players-list" id="playersList">
+                    <!-- Players will be populated here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Player Edit Modal -->
+    <div id="playerModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="playerModalTitle">Edit Player</h3>
+                <button class="close-btn" id="closePlayerModal">&times;</button>
+            </div>
+            <form id="playerForm" class="modal-form">
+                <input type="hidden" id="playerId">
+                <div class="form-group">
+                    <label for="playerEmail">Email:</label>
+                    <input type="email" id="playerEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="playerPassword">Password:</label>
+                    <input type="password" id="playerPassword">
+                </div>
+                <div class="form-group">
+                    <label for="playerName">Name:</label>
+                    <input type="text" id="playerName" required>
+                </div>
+                <div class="form-group">
+                    <label for="playerSkin">Skin (Image URL):</label>
+                    <input type="url" id="playerSkin" placeholder="https://example.com/skin.png">
+                </div>
+                <div class="form-group">
+                    <label for="playerCoins">Coins (DZD):</label>
+                    <input type="number" id="playerCoins" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="playerLevel">Level:</label>
+                    <input type="number" id="playerLevel" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="playerXP">Experience:</label>
+                    <input type="number" id="playerXP" min="0">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelPlayerBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Player</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Success Notification -->
+    <div id="successNotification" class="success-notification">
+        <div class="notification-content">
+            <h4>Player Created Successfully!</h4>
+            <div class="credentials">
+                <p><strong>Email:</strong> <span id="createdEmail"></span></p>
+                <p><strong>Password:</strong> <span id="createdPassword"></span></p>
+            </div>
+            <p class="note">Share these credentials with the player.</p>
+            <button id="closeNotification" class="btn btn-primary">OK</button>
+        </div>
+    </div>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        // Your Firebase config
+        const firebaseConfig = {
+            apiKey: "AIzaSyAwSj5ryXjJ8prlqoP6d0V_3jgmaK9lgP8",
+            authDomain: "rivalation-e2025.firebaseapp.com",
+            projectId: "rivalation-e2025",
+            storageBucket: "rivalation-e2025.firebasestorage.app",
+            messagingSenderId: "393944634509",
+            appId: "1:393944634509:web:18c0fde880466d2b537ec4",
+            measurementId: "G-P39N43F6DM"
+        };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // Make Firebase services available globally
+        window.auth = auth;
+        window.db = db;
+        window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.signOut = signOut;
+        window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+        window.getDoc = getDoc;
+        window.setDoc = setDoc;
+        window.updateDoc = updateDoc;
+        window.deleteDoc = deleteDoc;
+        window.collection = collection;
+        window.getDocs = getDocs;
+        window.query = query;
+        window.orderBy = orderBy;
+        window.limit = limit;
+        window.doc = doc;
+    </script>
+    
+    <!-- Mobile Optimization Script -->
+    <script src="mobile-optimization.js"></script>
+    
+    <!-- Players Management Script -->
+    <script src="players.js"></script>
+</body>
+</html>
